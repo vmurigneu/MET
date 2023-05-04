@@ -72,32 +72,3 @@ workflow {
 	ch_fastq.view()	
 	porechop(ch_fastq)
 }
-
-process minimap2 {
-    cpus "${params.threads}"
-    tag "${minimap2}"
-    label "cpu"
-    label "big_mem"
-    publishDir "$params.outdir/$minimap2/
-    
-    input:
-        tuple val(), file()
-    output:
-        tuple val()
-
-    script:
-    """
-    set +eu
-    minimap2 -i $   -t ${params.threads} -o *.sam 
-    cp .command.log minimap2.log 
-    minimap2 --version > minimap2_version.txt 
-    
-
-
-
-
-
-
-
-
-
