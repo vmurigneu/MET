@@ -81,8 +81,13 @@ workflow {
 - 
 */ 
 
+Channel.fromPath
+    adaptive_fq = Channel.fromPath(
+    non_adaptive_fq = Channel.fromPath(
+    genome = Channel.fromPath( 
 
-
+params.adaptive_reads = "path to adaptive" 
+parads.nonadaptive_reads = "path to nonadaptive"
 
 
 process minimap2 {
@@ -90,19 +95,23 @@ process minimap2 {
     tag "${minimap2}"
     label "cpu"
     label "big_mem"
-    publishDir "$params.outdir/$minimap2/
-    
+    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy' pattern:
+    "*.log", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy' pattern
+    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy', pattern
     input:
-        tuple val(), file()
+        tuple val(sample), file()  from non_adaptive_fq  /*adaptive vs non_adaptive file    */ 
+        tuple val(sample),  from adaptive_fq 
     output:
         tuple val()
 
     script:
     """
     set +eu
-    minimap2 -i $   -t ${params.threads} -o *.sam 
+    minimap2 -i !{   -t ${params.threads} -o *.sam 
     cp .command.log minimap2.log 
     minimap2 --version > minimap2_version.txt
+    minimap2 -i 
     """ 
 
 
