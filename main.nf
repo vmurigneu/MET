@@ -78,7 +78,7 @@ workflow {
 /* 
 - Will I be mapping to the adaptive and non-adaptive files separately?
 - Will I directly pass the minimap output into samtools etc. for sorting? 
-- 
+- Will I need two separate processes for each adaptive non_adaptive subset?  
 */ 
 
 Channel.fromPath
@@ -95,15 +95,21 @@ process minimap2 {
     tag "${minimap2}"
     label "cpu"
     label "big_mem"
-    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy' pattern:
+    publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
     "*.log", saveAs: { filename -> "${sample}_$filename" }
-    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy' pattern
-    publishDir "$params.outdir/$sample/"3_adaptive", mode: 'copy', pattern
+    publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
+    "*_version.txt" 
+    publishDir "$params.outdir/$sample/"3_mapping_{", mode: 'copy', pattern:
+    '*fastq.gz', saveAs: { filename -> "${sample}.${filename" } 
+    
     input:
-        tuple val(sample), file()  from non_adaptive_fq  /*adaptive vs non_adaptive file    */ 
-        tuple val(sample),  from adaptive_fq 
+        tuple val(sample), file(reads)  file()from non_adaptive_fq  //adaptive vs non_adaptive file
+        tuple val(sample), file(reads), file()  from adaptive_fq 
     output:
-        tuple val()
+        tuple val(sample), file("mapped.sam"), , emit: mapped_sam 
+        path("minimap.log")   
+        path("minimap_version.txt")   
+        path("*sam")   
 
     script:
     """
