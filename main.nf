@@ -59,12 +59,12 @@ process porechop {
 	when:
 	!params.skip_porechop
 	script:
-	"""
+	'''
 	set +eu
 	porechop -i ${reads} -t ${params.porechop_threads} -o trimmed.fastq.gz ${params.porechop_args}
 	cp .command.log porechop.log
 	porechop --version > porechop_version.txt
-	"""
+	'''
 }
 
 
@@ -82,9 +82,9 @@ workflow {
 */ 
 
 Channel.fromPath
-    adaptive_fq = Channel.fromPath(
-    non_adaptive_fq = Channel.fromPath(
-    genome = Channel.fromPath( 
+    adaptive_fq = Channel.fromPath()
+    non_adaptive_fq = Channel.fromPath()
+    genome = Channel.fromPath( '/data/refgenomes/*.{fa,fasta,fna}', checkIfExists: true ) 
 
 params.adaptive_reads = "path to adaptive" 
 parads.nonadaptive_reads = "path to nonadaptive"
@@ -96,15 +96,15 @@ process minimap2 {
     label "cpu"
     label "big_mem"
     publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
-    "*.log", saveAs: { filename -> "${sample}_$filename" }
+    "*.log", saveAs: { filename -> "${sample}_$filename" }  
     publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
     "*_version.txt" 
-    publishDir "$params.outdir/$sample/"3_mapping_{", mode: 'copy', pattern:
+    publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy', pattern:
     '*fastq.gz', saveAs: { filename -> "${sample}.${filename" } 
     
     input:
-        tuple val(sample), file(reads)  file()from non_adaptive_fq  //adaptive vs non_adaptive file
-        tuple val(sample), file(reads), file()  from adaptive_fq 
+        tuple val(sample), file(reads)  file() from non_adaptive_fq  //adaptive vs non_adaptive file
+        tuple val(sample), file(reads), file() from adaptive_fq 
     output:
         tuple val(sample), file("mapped.sam"), , emit: mapped_sam 
         path("minimap.log")   
@@ -112,13 +112,13 @@ process minimap2 {
         path("*sam")   
 
     script:
-    """
+    '''
     set +eu
     minimap2 -i !{   -t ${params.threads} -o *.sam 
     cp .command.log minimap2.log 
     minimap2 --version > minimap2_version.txt
     minimap2 -i 
-    """ 
+    ''' 
 
 
 
