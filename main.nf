@@ -28,9 +28,11 @@ def helpMessage() {
 	Optional parameters:
 		--threads				Number of threads (default=16)
 		--porechop_args				Porechop optional parameters (default=""), see https://github.com/rrwick/Porechop#full-usage
-		--porechop_threads			Number of threads for Porechop (default=4) (default=4)
+		--porechop_threads			Number of threads for Porechop (default=4)
 		--skip_porechop				Skip the Porechop trimming step (default=false)
 		--skip_extract_adaptive			Skip the adaptive/non-adaptive read extraction step (default=false)
+		--minimap_threads			Number of threads for Porechop (default=12)
+		--skip_remove_human_reads		Skip the human reads removal step (default=false)
     """.stripIndent()
 }
 
@@ -48,7 +50,7 @@ process porechop {
 	label "big_mem"
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*_version.txt"
-	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: '*fastq.gz', saveAs: { filename -> "${sample}.$filename" }
+	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: '*fastq.gz', saveAs: { filename -> "${sample}_$filename" }
 	input:
 		tuple val(sample), file(reads), file(csv)
 	output:
@@ -97,9 +99,9 @@ process extract_adaptive_fastq {
         input:
                 tuple val(sample), file(reads), file(readID_adaptive), file(readID_nonadaptive)
         output:
-                tuple val(sample), file("adaptive.fastq"), file("non_adaptive.fastq"), emit: extracted_fastq
-                path("extract_adaptive_fastq.log")
-                path("*fastq")
+		tuple val(sample), file("adaptive.fastq"), file("non_adaptive.fastq"), emit: extracted_fastq
+		path("extract_adaptive_fastq.log")
+		path("*fastq")
         when:
         !params.skip_extract_adaptive
         shell:
@@ -109,6 +111,45 @@ process extract_adaptive_fastq {
         seqtk subseq !{reads} !{readID_nonadaptive} > non_adaptive.fastq
         cp .command.log extract_adaptive_fastq.log
         '''
+}
+
+
+process minimap {
+	cpus "${params.minimap_threads}"
+	tag "${sample}"
+	label "cpu"
+	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*fastq", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), file(fastq_adaptive), file(fastq_non_adaptive)
+	output:
+		tuple val(sample), file("adaptive_bac.fastq"), file("non_adaptive_bac.fastq"), emit: bacterial_fastq
+		path("minimap.log")
+		path("*fastq")
+		path("*txt")
+	when:
+	!params.skip_remove_human_reads
+	shell:
+	'''
+	set +eu
+	module load samtools/1.13-gcc-10.3.0 seqtk/1.3-gcc-10.3.0
+	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_human} !{fastq_non_adaptive} > non_adaptive.sam
+	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_human} !{fastq_adaptive} > adaptive.sam
+	for type in adaptive non_adaptive; do
+		samtools sort -o ${type}.bam -@ !{params.minimap_threads} ${type}.sam
+		samtools index ${type}.bam 
+		samtools flagstat ${type}.bam > ${type}.flagstat.txt
+		samtools view -S -f 4 -b ${type}.bam -o ${type}_non_human.unsorted.bam
+		samtools sort -o ${type}_non_human.bam -@ !{params.minimap_threads} ${type}_non_human.unsorted.bam
+  		samtools index ${type}_non_human.bam
+ 		samtools flagstat ${type}_non_human.bam > ${type}_non_human.flagstat.txt
+        	samtools view ${type}_non_human.bam | cut -f1 | sort | uniq > ${type}_non_human_readID.lst
+	done
+	seqtk subseq !{fastq_adaptive} adaptive_non_human_readID.lst > adaptive_bac.fastq
+	seqtk subseq !{fastq_non_adaptive} non_adaptive_non_human_readID.lst > non_adaptive_bac.fastq
+	cp .command.log minimap.log
+	'''
 }
 
 workflow {
@@ -122,4 +163,6 @@ workflow {
 	porechop(ch_samplesheet)
 	extract_adaptive_readID(porechop.out.trimmed_fastq)
 	extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
+	minimap(extract_adaptive_fastq.out.extracted_fastq)
+	//minimap(extract_adaptive_fastq.out.extracted_fastq_adap.concat(extract_adaptive_fastq.out.extracted_fastq_non_adap))
 }
