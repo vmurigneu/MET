@@ -40,41 +40,6 @@ if (params.help){
     exit 0
 }
 
-
-process porechop {
-	cpus "${params.porechop_threads}"
-	tag "${sample}"
-	label "cpu"
-	label "big_mem"
-	publishDir "$params.outdir/$sample/1_filtering",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/1_filtering",  mode: 'copy', pattern: "*_version.txt"
-	publishDir "$params.outdir/$sample/1_filtering",  mode: 'copy', pattern: '*fastq.gz', saveAs: { filename -> "${sample}.$filename" }
-	input:
-		tuple val(sample), file(reads)
-	output:
-		tuple val(sample), file("trimmed.fastq.gz"), emit: trimmed_fastq
-		path("porechop.log")
-		path("porechop_version.txt")
-		path("*fastq.gz")
-	when:
-	!params.skip_porechop
-	script:
-	'''
-	set +eu
-	porechop -i ${reads} -t ${params.porechop_threads} -o trimmed.fastq.gz ${params.porechop_args}
-	cp .command.log porechop.log
-	porechop --version > porechop_version.txt
-	'''
-}
-
-
-workflow {
-	ch_fastq=Channel.fromPath( "${params.fastqdir}/*.fastq.gz" ). map { file -> tuple(file.simpleName, file) } 
-	ch_fastq.view()	
-	porechop(ch_fastq)
-}
-
-
 /* 
 - Will I be mapping to the adaptive and non-adaptive files separately?
 - Will I directly pass the minimap output into samtools etc. for sorting? 
@@ -87,14 +52,13 @@ Channel.fromPath
     genome = Channel.fromPath( '/data/refgenomes/*.{fa,fasta,fna}', checkIfExists: true ) 
 
 params.adaptive_reads = "path to adaptive" 
-parads.nonadaptive_reads = "path to nonadaptive"
+params.nonadaptive_reads = "path to nonadaptive"
 
 
-process minimap2 {
-    cpus "${params.threads}"
-    tag "${minimap2}"
+process minimap {
+    cpus "${params.minimap_threads}"
+    tag "${samples}"
     label "cpu"
-    label "big_mem"
     publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
     "*.log", saveAs: { filename -> "${sample}_$filename" }  
     publishDir "$params.outdir/$sample/"3_mapping", mode: 'copy' pattern:
@@ -103,14 +67,16 @@ process minimap2 {
     '*fastq.gz', saveAs: { filename -> "${sample}.${filename" } 
     
     input:
-        tuple val(sample), file(reads)  file() from non_adaptive_fq  //adaptive vs non_adaptive file
-        tuple val(sample), file(reads), file() from adaptive_fq 
+        tuple val(sample), file(fastq_adaptive), file(fastq_non_adaptive) 
     output:
-        tuple val(sample), file("mapped.sam"), , emit: mapped_sam 
+        tuple val(sample), file("adaptive_bac.fastq"),
+        file("non_adaptive_bac.fastq"), emit: bacterial_fastq  
         path("minimap.log")   
-        path("minimap_version.txt")   
-        path("*sam")   
-
+        path("*txt")   
+        path("*fastq")   
+    when:
+    !params.skip_remove_human_reads 
+    shell:
     script:
     '''
     set +eu
@@ -120,7 +86,57 @@ process minimap2 {
     minimap2 -i 
     ''' 
 
+// Parameters for flye 
+Assembly:
+		--flye_args				Flye optional parameters (default="--plasmids")
+		--flye_threads 				Number of threads for Flye (default=4)
 
+process flye {
+	cpus "${params.flye_threads}"
+	tag "${sample}"
+	label "cpu"
+    label "big_mem" 
+	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern:
+    "assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), file(fastq_adaptive_bac), file(fastq_non_adaptive_bac)
+	output:
+		tuple val(sample), file(""), path("adaptive_assembly_bac.fasta"),
+        path("adaptive_assembly_info_bac.txt"),
+        path("adaptive_assembly_graph_bac.gfa"),
+        path("adaptive_assembly_graph_bac.gv"), path("non_adaptive_assembly_bac.fasta"),
+        path("non_adaptive_assembly_info_bac.txt"), path("non_adaptive_assembly_graph_bac.gfa"),
+        path("non_adaptive_assembly_graph_bac.gv")
+        file("non_adaptive_bac.fasta"), emit: bacterial_assembly
+		path("flye.log")
+		path("flye_version.txt")
+	
+    when:
+	!params.skip_metagenome_assembly
+	shell:
+	'''
+	set +eu
+	singularity exec /scratch/project/gihcomp/sw/flye_2.9.1--py38hf4f3596_0.sif
+flye --nano-raw ${type}.fastq --threads !{params.metaflye_threads} --out-dir  
+	'''
+    
+    for type in adaptive non_adaptive; do
+		samtools sort -o ${type}.bam -@ !{params.minimap_threads} ${type}.sam
+		samtools index ${type}.bam 
+		samtools flagstat ${type}.bam > ${type}.flagstat.txt
+		samtools view -S -f 4 -b ${type}.bam -o ${type}_non_human.unsorted.bam
+		samtools sort -o ${type}_non_human.bam -@ !{params.minimap_threads} ${type}_non_human.unsorted.bam
+  		samtools index ${type}_non_human.bam
+ 		samtools flagstat ${type}_non_human.bam > ${type}_non_human.flagstat.txt
+        	samtools view ${type}_non_human.bam | cut -f1 | sort | uniq > ${type}_non_human_readID.lst
+	done
+	seqtk subseq !{fastq_adaptive} adaptive_non_human_readID.lst > adaptive_bac.fastq
+	seqtk subseq !{fastq_non_adaptive} non_adaptive_non_human_readID.lst > non_adaptive_bac.fastq
+	cp .command.log minimap.log
+	'''
+}
 
 
 
