@@ -34,7 +34,7 @@ def helpMessage() {
 		--skip_porechop			Skip the Porechop trimming step (default=false)
     
     Adaptive Read Sequencing: 
-        --skip_extract_adaptive	Skip the adaptive/non-adaptive read extraction step (default=false)
+        --skip_extract_adaptive	Skip the adaptive/non-adaptive read extraction step (default=false) Need to modify workflow to include this step
 	
     Mapping: 
         --minimap_threads		Number of threads for Porechop (default=12)
@@ -55,16 +55,16 @@ if (params.help){
 
 process porechop {
 	cpus "${params.porechop_threads}"
-	tag "${sample}"
-	label "cpu"
+ 	tag "${sample}"
+        label "cpu"
 	label "big_mem"
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*_version.txt"
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: '*fastq.gz', saveAs: { filename -> "${sample}_$filename" }
 	input:
-		tuple val(sample), file(reads), file(csv)
+		tuple val(sample), path(reads), path(csv)
 	output:
-		tuple val(sample), file("trimmed.fastq.gz"), file(csv),  emit: trimmed_fastq
+		tuple val(sample), path("trimmed.fastq.gz"), path(csv),  emit: trimmed_fastq
 		path("porechop.log")
 		path("porechop_version.txt")
 		path("*fastq.gz")
@@ -84,9 +84,9 @@ process extract_adaptive_readID {
         label "cpu"
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
         input:
-                tuple val(sample), file(reads), file(csv)
+                tuple val(sample), path(reads), path(csv)
         output:
-                tuple val(sample), file(reads), file("adaptive_reads.txt"), file("non_adaptive_reads.txt"), emit: extracted_readID
+                tuple val(sample), path(reads), path("adaptive_reads.txt"), path("non_adaptive_reads.txt"), emit: extracted_readID
                 path("extract_adaptive_readID.log")
                 path("*txt")
         when:
@@ -108,9 +108,9 @@ process extract_adaptive_fastq {
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*_version.txt"
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: '*fastq', saveAs: { filename -> "${sample}_$filename" }
         input:
-                tuple val(sample), file(reads), file(readID_adaptive), file(readID_nonadaptive)
+                tuple val(sample), path(reads), path(readID_adaptive), path(readID_nonadaptive)
         output:
-		tuple val(sample), file("adaptive.fastq"), file("non_adaptive.fastq"), emit: extracted_fastq
+		tuple val(sample),path("adaptive.fastq"),path("non_adaptive.fastq"), emit: extracted_fastq
 		path("extract_adaptive_fastq.log")
 		path("*fastq")
         when:
@@ -128,14 +128,15 @@ process extract_adaptive_fastq {
 process minimap {
 	cpus "${params.minimap_threads}"
 	tag "${sample}"
+	label "big_mem"
 	label "cpu"
 	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*fastq", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
 	input:
-		tuple val(sample), file(fastq_adaptive), file(fastq_non_adaptive)
+		tuple val(sample), path(fastq_adaptive), path(fastq_non_adaptive)
 	output:
-		tuple val(sample), file("adaptive_bac.fastq"), file("non_adaptive_bac.fastq"), emit: bacterial_fastq
+		tuple val(sample), path("adaptive_bac.fastq"), path("non_adaptive_bac.fastq"), emit: bacterial_fastq
 		path("minimap.log")
 		path("*fastq")
 		path("*txt")
@@ -166,39 +167,37 @@ process minimap {
 process flye {
 	cpus "${params.flye_threads}"
 	tag "${sample}"
-	label "cpu"
-    label "big_mem" 
+	label "big_mem" 
 	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern:
-    "assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
 	input:
-		tuple val(sample), file(fastq_adaptive_bac), file(fastq_non_adaptive_bac)
+		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac)
 	output:
-		tuple val(sample), file(""), 
-        path("adaptive_assembly_bac.fasta"),
-        path("adaptive_assembly_info_bac.txt"), 
-        path("adaptive_assembly_graph_bac.gfa"),
-        path("adaptive_assembly_graph_bac.gv"), 
-        path("non_adaptive_assembly_bac.fasta"),
-        path("non_adaptive_assembly_info_bac.txt"), 
-        path("non_adaptive_assembly_graph_bac.gfa"),
-        path("non_adaptive_assembly_graph_bac.gv")
-        file("non_adaptive_bac.fasta"), emit: bacterial_assembly
-		path("flye.log")
-		path("flye_version.txt")
-    when:
+		tuple val(sample),  path("adaptive_assembly_bac.fasta"),path("adaptive_assembly_info_bac.txt"), path("adaptive_assembly_graph_bac.gfa"),path("adaptive_assembly_graph_bac.gv"), path("non_adaptive_assembly_bac.fasta"),path("non_adaptive_assembly_info_bac.txt"), path("non_adaptive_assembly_graph_bac.gfa"),path("non_adaptive_assembly_graph_bac.gv"), emit: bacterial_assembly
+	path("flye.log")
+	path("flye_version.txt")
+	when:
 	!params.skip_metagenome_assembly
-	script:
+	shell:
 	'''
 	set +eu
-    flye --nano-raw !{fastq_adaptive_bac} --threads !{params.metaflye_threads}
-    --out-dir  ?
-    flye --nano-raw !{fastq_non_adaptive_bac} --threads !{params.metaflye_threads} --out-dir  
-    '''  
+	flye --nano-hq !{fastq_adaptive_bac} --threads !{params.flye_threads} --out-dir \$PWD !{params.flye_args}
+	mv assembly.fasta adaptive_assembly_bac.fasta
+	mv assembly_info.txt adaptive_assembly_info_bac.txt
+	mv assembly_graph.gfa adaptive_assembly_graph_bac.gfa
+	mv assembly_graph.gv adaptive_assembly_graph_bac.gv
+	flye --nano-hq !{fastq_non_adaptive_bac} --threads !{params.flye_threads} --out-dir \$PWD !{params.flye_args} 
+	mv assembly.fasta non_adaptive_assembly_bac.fasta
+	mv assembly_info.txt non_adaptive_assembly_info_bac.txt
+	mv assembly_graph.gfa non_adaptive_assembly_graph_bac.gfa
+	mv assembly_graph.gv non_adaptive_assembly_graph_bac.gv
+	flye -v 2> flye_version.txt
+	cp .command.log flye.log
+	'''  
+}
     
-// singularity exec /scratch/project/gihcomp/sw/flye_2.9.1--py38hf4f3596_0.sif
-
 workflow {
 	//ch_fastq=Channel.fromPath( "${params.fastqdir}/*.fastq.gz" ). map { file -> tuple(file.simpleName, file) } 
 	//ch_fastq.view()	
@@ -207,11 +206,18 @@ workflow {
 	.map { row -> tuple(row.sample_id, file(row.fastq, checkIfExists: true), file(row.csv, checkIfExists: true)) }
 	.set { ch_samplesheet }
 	ch_samplesheet.view()
-	porechop(ch_samplesheet)
-	extract_adaptive_readID(porechop.out.trimmed_fastq)
-	extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
-	minimap(extract_adaptive_fastq.out.extracted_fastq)
-	//minimap(extract_adaptive_fastq.out.extracted_fastq_adap.concat(extract_adaptive_fastq.out.extracted_fastq_non_adap))
-    flye(assemble_adaptive_bac_fastq.out.assembled_fasta)
+	if (!params.skip_porechop) {
+		porechop(ch_samplesheet)
+		extract_adaptive_readID(porechop.out.trimmed_fastq)
+		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
+		minimap(extract_adaptive_fastq.out.extracted_fastq)
+		flye(minimap.out.bacterial_fastq)
+	}
+	else if (params.skip_porechop) {	
+		extract_adaptive_readID(ch_samplesheet)
+		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
+		minimap(extract_adaptive_fastq.out.extracted_fastq)
+		flye(minimap.out.bacterial_fastq)
+	}
 }
 
