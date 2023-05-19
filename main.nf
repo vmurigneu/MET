@@ -270,6 +270,7 @@ workflow {
 				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
 			}
 			flye(centrifuge.out.bacterial_fastq)
+		}
 		else if (params.skip_centrifuge) {
 			flye(minimap.out.bacterial_fastq)
 		}
