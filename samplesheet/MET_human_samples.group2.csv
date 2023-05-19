@@ -1,0 +1,7 @@
+sample_id,fastq,csv
+Saliva1,fastq/2023_05_02_MET_Saliva1_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_FAV66068_3d2b3c38_08303c6a.csv
+Saliva2,fastq/2023_05_02_MET_Saliva2_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_FAV81130_e45096a0_a6bd1c5b.csv
+Saliva3,fastq/2023_05_02_MET_Saliva3_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_FAV66248_0e8322af_d1ee8809.csv
+ThroatSwab1,fastq/2023_04_11_MET_ThroatSwab1_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_2023_04_11_MET_ThroatSwab1.csv
+ThroatSwab2,fastq/2023_04_26_MET_ThroatSwab2_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_FAV66141_4d4d3f41_1ad348e9.csv
+ThroatSwab3,fastq/2023_04_26_MET_ThroatSwab3_guppy6.3.8_sup_pass.fastq.gz,fastq/adaptive_sampling_FAV68751_fa259237_e877ef95.csv
