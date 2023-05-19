@@ -28,21 +28,27 @@ def helpMessage() {
 	Optional parameters:
 		--threads				Number of threads (default=16)
 	
-    Porechop: 
-        --porechop_args			Porechop optional parameters (default=""), see https://github.com/rrwick/Porechop#full-usage
-		--porechop_threads		Number of threads for Porechop (default=4) (default=4)
-		--skip_porechop			Skip the Porechop trimming step (default=false)
+	Porechop: 
+        	--porechop_args				Porechop optional parameters (default=""), see https://github.com/rrwick/Porechop#full-usage
+		--porechop_threads			Number of threads for Porechop (default=4) (default=4)
+		--skip_porechop				Skip the Porechop trimming step (default=false)
     
-    Adaptive Read Sequencing: 
-        --skip_extract_adaptive	Skip the adaptive/non-adaptive read extraction step (default=false) Need to modify workflow to include this step
+	Adaptive Read Sequencing: 
+        	--skip_extract_adaptive			Skip the adaptive/non-adaptive read extraction step (default=false) Need to modify workflow to include this step
 	
-    Mapping: 
-        --minimap_threads		Number of threads for Porechop (default=12)
-	--skip_remove_human_reads		Skip the human reads removal step (default=false)
+	Mapping: 
+        	--minimap_threads			Number of threads for Porechop (default=12)
+		--skip_remove_human_reads		Skip the human reads removal step (default=false)
     
-    Flye Assembly: 
-        --flye_threads          Number of threads for Flye (default=?)
-        --memory                Memory usage for Flye (default=0)
+	Flye Assembly: 
+        	--flye_threads          		Number of threads for Flye (default=?)
+        	--memory                		Memory usage for Flye (default=0)
+
+	Centrifuge taxonomy classification:
+		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
+		--skip_centrifuge			Skip the centrifuge taxonomy classification step (default=false)
+		--centrifuge_threads			Number of threads for Centrifuge (default=12)
+	
     """.stripIndent()
 }
 
@@ -168,10 +174,10 @@ process flye {
 	cpus "${params.flye_threads}"
 	tag "${sample}"
 	label "big_mem" 
-	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/4_flye",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac)
 	output:
@@ -197,10 +203,53 @@ process flye {
 	cp .command.log flye.log
 	'''  
 }
-    
+
+process centrifuge_download_db {
+	cpus 1
+	label "big_mem"
+	publishDir "$params.outdir/centrifuge_database",  mode: 'copy', pattern: "*.cf"
+	input:
+		val(db)		
+	output:
+		tuple path("nt.1.cf"), path("nt.2.cf"), path("nt.3.cf"), path("nt.4.cf"), emit: centrifuge_db
+	when:
+	!params.skip_download_centrifuge_db
+	script:
+	"""
+	echo ${db}
+	wget ${db}
+	tar -xvf nt_2018_3_3.tar.gz
+	"""
+}
+
+process centrifuge {
+	cpus "${params.centrifuge_threads}"
+	tag "${sample}"
+	label "very_big_mem"
+	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.tsv", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), path(db1), path(db2), path(db3), path(db4)
+	output:
+		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), emit: bacterial_fastq
+		tuple path("adaptive_centrifuge_report.tsv"), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_reports
+		path("centrifuge.log")
+	when:
+	!params.skip_centrifuge
+	script:
+	"""
+	centrifuge -x nt -U ${fastq_adaptive_bac} -S adaptive_centrifuge_species_report.tsv --report-file adaptive_centrifuge_report.tsv --threads ${params.centrifuge_threads}
+	centrifuge -x nt -U ${fastq_non_adaptive_bac} -S non_adaptive_centrifuge_species_report.tsv --report-file non_adaptive_centrifuge_report.tsv --threads ${params.centrifuge_threads}
+	cp .command.log centrifuge.log
+	"""
+}
+
 workflow {
 	//ch_fastq=Channel.fromPath( "${params.fastqdir}/*.fastq.gz" ). map { file -> tuple(file.simpleName, file) } 
-	//ch_fastq.view()	
+	//ch_fastq.view()
+	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
+	//ch_centrifuge_db=Channel.fromPath( "${params.centrifuge_db}")
+	ch_centrifuge_db.view()
 	Channel.fromPath( "${params.samplesheet}", checkIfExists:true )
 	.splitCsv(header:true, sep:',')
 	.map { row -> tuple(row.sample_id, file(row.fastq, checkIfExists: true), file(row.csv, checkIfExists: true)) }
@@ -211,13 +260,40 @@ workflow {
 		extract_adaptive_readID(porechop.out.trimmed_fastq)
 		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 		minimap(extract_adaptive_fastq.out.extracted_fastq)
-		flye(minimap.out.bacterial_fastq)
+		if (!params.skip_centrifuge) {
+			if (!params.skip_download_centrifuge_db) {
+				centrifuge_download_db(ch_centrifuge_db)
+				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
+			}
+			else if (params.skip_download_centrifuge_db) {
+				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
+				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
+			}
+			flye(centrifuge.out.bacterial_fastq)
+		else if (params.skip_centrifuge) {
+			flye(minimap.out.bacterial_fastq)
+		}
 	}
 	else if (params.skip_porechop) {	
 		extract_adaptive_readID(ch_samplesheet)
 		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 		minimap(extract_adaptive_fastq.out.extracted_fastq)
-		flye(minimap.out.bacterial_fastq)
+		if (!params.skip_centrifuge) {
+			if (!params.skip_download_centrifuge_db) {
+				centrifuge_download_db(ch_centrifuge_db)
+				centrifuge_download_db.out.centrifuge_db.view()
+				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
+			}
+			else if (params.skip_download_centrifuge_db) {
+				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
+				ch_centrifuge_db.view()
+				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
+			}
+			flye(centrifuge.out.bacterial_fastq)
+		}
+		else if (params.skip_centrifuge) {
+			flye(minimap.out.bacterial_fastq)
+		}
 	}
 }
 

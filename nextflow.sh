@@ -16,15 +16,16 @@ module load nextflow/22.10.1
 dir=/scratch/project/gihcomp/MET/pipeline
 cd ${dir}
 datadir=${dir}/data
-samplesheet=${dir}/samplesheet/sample1.csv
-#samplesheet=${dir}/samplesheet/test1.csv
-out_dir=${dir}/results
-#out_dir=${dir}/results_test1
+#samplesheet=${dir}/samplesheet/sample1.csv
+samplesheet=${dir}/samplesheet/test1.csv
+#out_dir=${dir}/results
+out_dir=${dir}/results_test1
 fqdir=${dir}/fastq
 
 #cp /QRISdata/Q4860/MinION_Full-Scale/Raw-Data/Mock_community/20230118_comm_1Pro_BB/20230118_1539_MN33062_FAS65356_85211c55/other_reports/adaptive_sampling_FAS65356_85211c55_7bbc80e1.csv ${dir}/fastq
 #cp /QRISdata/Q4860/MinION_Full-Scale/Raw-Data/Mock_community/20230120_comm_2Un_BB/20230120_1227_MN41645_FAS67931_f441b463/other_reports/adaptive_sampling_FAS67931_f441b463_c4415279.csv ${dir}/fastq
 #nextflow main.nf  --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet}
-nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_porechop
-
+#nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_porechop --skip_centrifuge
+#nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_porechop -resume
+nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_download_centrifuge_db
 
