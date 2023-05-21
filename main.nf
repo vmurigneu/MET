@@ -34,15 +34,14 @@ def helpMessage() {
 		--skip_porechop				Skip the Porechop trimming step (default=false)
     
 	Adaptive Read Sequencing: 
-        	--skip_extract_adaptive			Skip the adaptive/non-adaptive read extraction step (default=false) Need to modify workflow to include this step
 	
 	Mapping: 
         	--minimap_threads			Number of threads for Porechop (default=12)
-		--skip_remove_human_reads		Skip the human reads removal step (default=false)
     
 	Flye Assembly: 
         	--flye_threads          		Number of threads for Flye (default=?)
         	--memory                		Memory usage for Flye (default=0)
+		--skip_assembly				Skipt the metagenome assembly (default=false)
 
 	Centrifuge taxonomy classification:
 		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
@@ -140,7 +139,6 @@ process extract_adaptive_fastq {
         '''
 }
 
-
 process minimap {
 	cpus "${params.minimap_threads}"
 	tag "${sample}"
@@ -201,7 +199,7 @@ process flye {
 		path("flye.log")
 		path("flye_version.txt")
 	when:
-	!params.skip_metagenome_assembly
+	!params.skip_assembly
 	shell:
 	'''
 	set +eu
@@ -328,7 +326,6 @@ process centrifuge {
 
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
-	//ch_centrifuge_db=Channel.fromPath( "${params.centrifuge_db}")
 	ch_centrifuge_db.view()
 	Channel.fromPath( "${params.samplesheet}", checkIfExists:true )
 	.splitCsv(header:true, sep:',')
@@ -340,6 +337,13 @@ workflow {
 		extract_adaptive_readID(porechop.out.trimmed_fastq)
 		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 		minimap(extract_adaptive_fastq.out.extracted_fastq)
+		if (!params.skip_assembly) {
+			flye(minimap.out.bacterial_fastq)
+			if (!params.skip_polishing) {
+				racon(flye.out.bacterial_assembly_fasta)
+				medaka(racon.out.polished_racon)
+			}
+		}
 		if (!params.skip_centrifuge) {
 			if (!params.skip_download_centrifuge_db) {
 				centrifuge_download_db(ch_centrifuge_db)
@@ -348,36 +352,10 @@ workflow {
 				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
 				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
 			}
-			flye(centrifuge.out.bacterial_fastq)
-		} else if (params.skip_centrifuge) {
-			flye(minimap.out.bacterial_fastq)
-		}
-		if (!params.skip_polishing) {
-			racon(flye.out.bacterial_assembly_fasta)
-			medaka(racon.out.polished_racon)
 		}
 	} else if (params.skip_porechop) {	
 		extract_adaptive_readID(ch_samplesheet)
 		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 		minimap(extract_adaptive_fastq.out.extracted_fastq)
-		if (!params.skip_centrifuge) {
-			if (!params.skip_download_centrifuge_db) {
-				centrifuge_download_db(ch_centrifuge_db)
-				centrifuge_download_db.out.centrifuge_db.view()
-				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-			} else if (params.skip_download_centrifuge_db) {
-				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
-				ch_centrifuge_db.view()
-				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
-			}
-			flye(centrifuge.out.bacterial_fastq)
-		} else if (params.skip_centrifuge) {
-			flye(minimap.out.bacterial_fastq)
-		}
-		if (!params.skip_polishing) {
-			racon(flye.out.bacterial_assembly_fasta)
-			medaka(racon.out.polished_racon)
-		}
 	}
 }
-
