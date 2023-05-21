@@ -48,6 +48,14 @@ def helpMessage() {
 		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
 		--skip_centrifuge			Skip the centrifuge taxonomy classification step (default=false)
 		--centrifuge_threads			Number of threads for Centrifuge (default=12)
+
+	Polishing:
+		--skip_polishing			Skip the Racon and Medaka polishing step (default=false)
+		--racon_nb				Number of Racon long-read polishing iterations (default=4)
+		--racon_args 				Racon optional parameters (default="-m 8 -x -6 -g -8 -w 500")
+		--racon_threads 			Number of threads for Racon (default=4)
+		--medaka_threads 			Number of threads for Medaka (default=4)
+		--medaka_model				Medaka model (default=r1041_e82_400bps_sup_g615)
 	
     """.stripIndent()
 }
@@ -63,7 +71,7 @@ process porechop {
 	cpus "${params.porechop_threads}"
  	tag "${sample}"
         label "cpu"
-	label "big_mem"
+	label "high_memory"
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: "*_version.txt"
 	publishDir "$params.outdir/$sample/1_trimming",  mode: 'copy', pattern: '*fastq.gz', saveAs: { filename -> "${sample}_$filename" }
@@ -88,6 +96,7 @@ process porechop {
 process extract_adaptive_readID {
         tag "${sample}"
         label "cpu"
+        label "high_memory"
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
         input:
                 tuple val(sample), path(reads), path(csv)
@@ -110,6 +119,7 @@ process extract_adaptive_readID {
 process extract_adaptive_fastq {
         tag "${sample}"
         label "cpu"
+	label "high_memory"
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*_version.txt"
         publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: '*fastq', saveAs: { filename -> "${sample}_$filename" }
@@ -134,7 +144,7 @@ process extract_adaptive_fastq {
 process minimap {
 	cpus "${params.minimap_threads}"
 	tag "${sample}"
-	label "big_mem"
+	label "high_memory"
 	label "cpu"
 	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/3_minimap",  mode: 'copy', pattern: "*fastq", saveAs: { filename -> "${sample}_$filename" }
@@ -170,20 +180,26 @@ process minimap {
 	'''
 }
 
+prefix="flye"
+prefix_lr="flye_polished"
+raconv="racon"
+medakav="medaka"
+
 process flye {
 	cpus "${params.flye_threads}"
 	tag "${sample}"
-	label "big_mem" 
-	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_flye",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
+	label "high_memory" 
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac)
 	output:
-		tuple val(sample),  path("adaptive_assembly_bac.fasta"),path("adaptive_assembly_info_bac.txt"), path("adaptive_assembly_graph_bac.gfa"),path("adaptive_assembly_graph_bac.gv"), path("non_adaptive_assembly_bac.fasta"),path("non_adaptive_assembly_info_bac.txt"), path("non_adaptive_assembly_graph_bac.gfa"),path("non_adaptive_assembly_graph_bac.gv"), emit: bacterial_assembly
-	path("flye.log")
-	path("flye_version.txt")
+		tuple val(sample), path(fastq_adaptive_bac), path("adaptive_assembly_bac.fasta"), path(fastq_non_adaptive_bac), path("non_adaptive_assembly_bac.fasta"), emit: bacterial_assembly_fasta
+		tuple val(sample), path("adaptive_assembly_info_bac.txt"), path("adaptive_assembly_graph_bac.gfa"),path("adaptive_assembly_graph_bac.gv"), path("non_adaptive_assembly_info_bac.txt"), path("non_adaptive_assembly_graph_bac.gfa"),path("non_adaptive_assembly_graph_bac.gv"), emit: bacterial_assembly_graph
+		path("flye.log")
+		path("flye_version.txt")
 	when:
 	!params.skip_metagenome_assembly
 	shell:
@@ -204,14 +220,80 @@ process flye {
 	'''  
 }
 
+process racon {
+	cpus "${params.racon_threads}"
+	tag "${sample}"
+	label "racon"
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_${prefix}_${raconv}_${params.racon_nb}.fasta"}
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt"
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly) 
+	output:
+		tuple val(sample), path(fastq_adaptive_bac), path("adaptive_${prefix}_${raconv}_${params.racon_nb}.fasta"), path(fastq_non_adaptive_bac), path("non_adaptive_${prefix}_${raconv}_${params.racon_nb}.fasta"), emit: polished_racon
+	path("racon.log")
+	path("racon_version.txt")
+	when:
+	!params.skip_polishing
+	script:
+	"""
+	set +eu
+	ln -s ${adaptive_assembly} adaptive_${prefix}_${raconv}_0.fasta
+	for i in `seq 1 ${params.racon_nb}`; do
+ 		ii=\$((\$i-1))
+		minimap2 -t ${params.racon_threads} -ax map-ont adaptive_${prefix}_${raconv}_\$ii.fasta ${fastq_adaptive_bac} > adaptive_${prefix}.gfa\$i.sam
+		racon ${params.racon_args} -t ${params.racon_threads} ${fastq_adaptive_bac} adaptive_${prefix}.gfa\$i.sam adaptive_${prefix}_${raconv}_\$ii.fasta --include-unpolished > adaptive_${prefix}_${raconv}_\$i.fasta
+		rm adaptive_${prefix}.gfa\$i.sam
+	done
+	ln -s ${non_adaptive_assembly} non_adaptive_${prefix}_${raconv}_0.fasta
+	for i in `seq 1 ${params.racon_nb}`; do
+		ii=\$((\$i-1))
+		minimap2 -t ${params.racon_threads} -ax map-ont non_adaptive_${prefix}_${raconv}_\$ii.fasta ${fastq_non_adaptive_bac} > non_adaptive_${prefix}.gfa\$i.sam
+		racon ${params.racon_args} -t ${params.racon_threads} ${fastq_non_adaptive_bac} non_adaptive_${prefix}.gfa\$i.sam non_adaptive_${prefix}_${raconv}_\$ii.fasta --include-unpolished > non_adaptive_${prefix}_${raconv}_\$i.fasta
+		rm non_adaptive_${prefix}.gfa\$i.sam	
+	done
+	cp .command.log racon.log
+	racon --version > racon_version.txt 
+	"""
+}
+
+process medaka {
+	cpus "${params.medaka_threads}"
+	tag "${sample}"
+	label "medaka"
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_${prefix_lr}.fasta"}
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt" 
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_draft), path(fastq_non_adaptive_bac), path(non_adaptive_draft)
+	output:
+		tuple val(sample), path(adaptive_draft), path ("adaptive_consensus.fasta"), path(non_adaptive_draft), path ("non_adaptive_consensus.fasta"), emit: polished_medaka
+	path("medaka.log")
+	path("medaka_version.txt")
+	when:
+	!params.skip_polishing	
+	script:
+	"""
+	set +eu
+	medaka_consensus -i ${fastq_adaptive_bac} -d ${adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
+	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
+	cp consensus.fasta adaptive_consensus.fasta
+	medaka_consensus -i ${fastq_adaptive_bac} -d ${non_adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
+	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
+	cp consensus.fasta non_adaptive_consensus.fasta 
+	cp .command.log medaka.log
+	medaka --version > medaka_version.txt
+ 	"""
+}
+
 process centrifuge_download_db {
 	cpus 1
-	label "big_mem"
+	label "high_memory"
 	publishDir "$params.outdir/centrifuge_database",  mode: 'copy', pattern: "*.cf"
 	input:
 		val(db)		
 	output:
-		tuple path("nt.1.cf"), path("nt.2.cf"), path("nt.3.cf"), path("nt.4.cf"), emit: centrifuge_db
+		tuple path("*.1.cf"), path("*.2.cf"), path("*.3.cf"), path("*.4.cf"), emit: centrifuge_db
 	when:
 	!params.skip_download_centrifuge_db
 	script:
@@ -225,7 +307,7 @@ process centrifuge_download_db {
 process centrifuge {
 	cpus "${params.centrifuge_threads}"
 	tag "${sample}"
-	label "very_big_mem"
+	label "very_high_memory"
 	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.tsv", saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	input:
@@ -245,8 +327,6 @@ process centrifuge {
 }
 
 workflow {
-	//ch_fastq=Channel.fromPath( "${params.fastqdir}/*.fastq.gz" ). map { file -> tuple(file.simpleName, file) } 
-	//ch_fastq.view()
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
 	//ch_centrifuge_db=Channel.fromPath( "${params.centrifuge_db}")
 	ch_centrifuge_db.view()
@@ -264,18 +344,19 @@ workflow {
 			if (!params.skip_download_centrifuge_db) {
 				centrifuge_download_db(ch_centrifuge_db)
 				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-			}
-			else if (params.skip_download_centrifuge_db) {
+			} else if (params.skip_download_centrifuge_db) {
 				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
 				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
 			}
 			flye(centrifuge.out.bacterial_fastq)
-		}
-		else if (params.skip_centrifuge) {
+		} else if (params.skip_centrifuge) {
 			flye(minimap.out.bacterial_fastq)
 		}
-	}
-	else if (params.skip_porechop) {	
+		if (!params.skip_polishing) {
+			racon(flye.out.bacterial_assembly_fasta)
+			medaka(racon.out.polished_racon)
+		}
+	} else if (params.skip_porechop) {	
 		extract_adaptive_readID(ch_samplesheet)
 		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 		minimap(extract_adaptive_fastq.out.extracted_fastq)
@@ -284,16 +365,18 @@ workflow {
 				centrifuge_download_db(ch_centrifuge_db)
 				centrifuge_download_db.out.centrifuge_db.view()
 				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-			}
-			else if (params.skip_download_centrifuge_db) {
+			} else if (params.skip_download_centrifuge_db) {
 				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
 				ch_centrifuge_db.view()
 				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
 			}
 			flye(centrifuge.out.bacterial_fastq)
-		}
-		else if (params.skip_centrifuge) {
+		} else if (params.skip_centrifuge) {
 			flye(minimap.out.bacterial_fastq)
+		}
+		if (!params.skip_polishing) {
+			racon(flye.out.bacterial_assembly_fasta)
+			medaka(racon.out.polished_racon)
 		}
 	}
 }
