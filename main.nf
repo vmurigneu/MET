@@ -222,7 +222,7 @@ process racon {
 	cpus "${params.racon_threads}"
 	tag "${sample}"
 	label "racon"
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_${prefix}_${raconv}_${params.racon_nb}.fasta"}
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
 	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt"
 	input:
@@ -259,13 +259,14 @@ process medaka {
 	cpus "${params.medaka_threads}"
 	tag "${sample}"
 	label "medaka"
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_${prefix_lr}.fasta"}
+	
+	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
 	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
 	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt" 
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_draft), path(fastq_non_adaptive_bac), path(non_adaptive_draft)
 	output:
-		tuple val(sample), path(adaptive_draft), path ("adaptive_consensus.fasta"), path(non_adaptive_draft), path ("non_adaptive_consensus.fasta"), emit: polished_medaka
+		tuple val(sample), path(adaptive_draft), path ("adaptive_flye_polished.fasta"), path(non_adaptive_draft), path ("non_adaptive_flye_polished.fasta"), emit: polished_medaka
 	path("medaka.log")
 	path("medaka_version.txt")
 	when:
@@ -275,10 +276,10 @@ process medaka {
 	set +eu
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta adaptive_consensus.fasta
+	cp consensus.fasta adaptive_flye_polished.fasta
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${non_adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta non_adaptive_consensus.fasta 
+	cp consensus.fasta non_adaptive_flye_polished.fasta 
 	cp .command.log medaka.log
 	medaka --version > medaka_version.txt
  	"""
