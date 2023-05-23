@@ -27,6 +27,6 @@ fqdir=${dir}/fastq
 #cp /QRISdata/Q4860/MinION_Full-Scale/Raw-Data/Mock_community/20230120_comm_2Un_BB/20230120_1227_MN41645_FAS67931_f441b463/other_reports/adaptive_sampling_FAS67931_f441b463_c4415279.csv ${dir}/fastq
 #nextflow main.nf  --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet}
 #nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_porechop --skip_centrifuge
-nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_download_centrifuge_db -resume
-#nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_download_centrifuge_db --skip_porechop --skip_centrifuge
+#nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_download_centrifuge_db -resume
+nextflow main.nf --outdir ${out_dir} --fastqdir ${fqdir} --samplesheet ${samplesheet} --skip_download_centrifuge_db --skip_porechop --skip_assembly --skip_polishing -resume
 

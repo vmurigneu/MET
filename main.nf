@@ -47,7 +47,8 @@ def helpMessage() {
 		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
 		--skip_centrifuge			Skip the centrifuge taxonomy classification step (default=false)
 		--centrifuge_threads			Number of threads for Centrifuge (default=12)
-
+		--skip_krona				Skip the generation of Krona plots (default=false)
+	
 	Polishing:
 		--skip_polishing			Skip the Racon and Medaka polishing step (default=false)
 		--racon_nb				Number of Racon long-read polishing iterations (default=4)
@@ -178,8 +179,8 @@ process minimap {
 	'''
 }
 
-prefix="flye"
-prefix_lr="flye_polished"
+prefix="assembly"
+prefix_lr="assembly_polished"
 raconv="racon"
 medakav="medaka"
 
@@ -276,10 +277,10 @@ process medaka {
 	set +eu
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta adaptive_flye_polished.fasta
+	cp consensus.fasta adaptive_assembly_polished.fasta
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${non_adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta non_adaptive_flye_polished.fasta 
+	cp consensus.fasta non_adaptive_assembly_polished.fasta 
 	cp .command.log medaka.log
 	medaka --version > medaka_version.txt
  	"""
@@ -313,7 +314,7 @@ process centrifuge {
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), path(db1), path(db2), path(db3), path(db4)
 	output:
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), emit: bacterial_fastq
-		tuple path("adaptive_centrifuge_report.tsv"), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_reports
+		tuple val(sample), path("adaptive_centrifuge_report.tsv"), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_reports
 		path("centrifuge.log")
 	when:
 	!params.skip_centrifuge
@@ -324,6 +325,30 @@ process centrifuge {
 	cp .command.log centrifuge.log
 	"""
 }
+
+process krona {
+	cpus 1
+	tag "${sample}"
+	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*krona.html", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), path(adaptive_report), path(adaptive_species_report), path(non_adaptive_report), path(non_adaptive_species_report), path(krona_database)
+	output:
+		tuple val(sample), path("adaptive_centrifuge_taxonomy.krona.html"), path("non_adaptive_centrifuge_taxonomy.krona.html"), emit: krona_html
+		path("krona.log")
+	when:
+	!params.skip_krona
+	script:
+	"""
+	set +eu
+	cat ${adaptive_species_report} | cut -f 1,3 > adaptive_centrifuge_species_report.krona
+	cat ${non_adaptive_species_report} | cut -f 1,3 > non_adaptive_centrifuge_species_report.krona
+	ktImportTaxonomy adaptive_centrifuge_species_report.krona -o adaptive_centrifuge_taxonomy.krona.html -tax \$PWD
+	ktImportTaxonomy non_adaptive_centrifuge_species_report.krona -o non_adaptive_centrifuge_taxonomy.krona.html -tax \$PWD
+	cp .command.log krona.log
+	"""
+}
+
 
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
@@ -336,27 +361,29 @@ workflow {
 	if (!params.skip_porechop) {
 		porechop(ch_samplesheet)
 		extract_adaptive_readID(porechop.out.trimmed_fastq)
-		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
-		minimap(extract_adaptive_fastq.out.extracted_fastq)
-		if (!params.skip_assembly) {
-			flye(minimap.out.bacterial_fastq)
-			if (!params.skip_polishing) {
-				racon(flye.out.bacterial_assembly_fasta)
-				medaka(racon.out.polished_racon)
-			}
-		}
-		if (!params.skip_centrifuge) {
-			if (!params.skip_download_centrifuge_db) {
-				centrifuge_download_db(ch_centrifuge_db)
-				centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-			} else if (params.skip_download_centrifuge_db) {
-				ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
-				centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
-			}
-		}
 	} else if (params.skip_porechop) {	
 		extract_adaptive_readID(ch_samplesheet)
-		extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
-		minimap(extract_adaptive_fastq.out.extracted_fastq)
 	}
-}
+	extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
+	minimap(extract_adaptive_fastq.out.extracted_fastq)
+	if (!params.skip_assembly) {
+		flye(minimap.out.bacterial_fastq)
+		if (!params.skip_polishing) {
+			racon(flye.out.bacterial_assembly_fasta)
+			medaka(racon.out.polished_racon)
+		}
+	}
+	if (!params.skip_centrifuge) {
+		if (!params.skip_download_centrifuge_db) {
+			centrifuge_download_db(ch_centrifuge_db)
+			centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
+		} else if (params.skip_download_centrifuge_db) {
+			ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
+			centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
+		}
+		if (!params.skip_krona) {
+			ch_krona_db=Channel.value( "${params.krona_db}")
+			krona(centrifuge.out.centrifuge_reports.combine(ch_krona_db))
+		}
+	}
+ }
