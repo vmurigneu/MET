@@ -163,8 +163,8 @@ process minimap {
 	'''
 	set +eu
 	module load samtools/1.13-gcc-10.3.0 seqtk/1.3-gcc-10.3.0
-	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_human} !{fastq_non_adaptive} > non_adaptive.sam
-	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_human} !{fastq_adaptive} > adaptive.sam
+	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_genome} !{fastq_non_adaptive} > non_adaptive.sam
+	/scratch/project/gihcomp/sw/minimap2/minimap2 -t !{params.minimap_threads} -ax map-ont !{params.ref_genome} !{fastq_adaptive} > adaptive.sam
 	for type in adaptive non_adaptive; do
 		samtools sort -o ${type}.bam -@ !{params.minimap_threads} ${type}.sam
 		samtools index ${type}.bam 
@@ -315,7 +315,7 @@ process centrifuge {
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), path(db1), path(db2), path(db3), path(db4)
 	output:
-		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), emit: bacterial_fastq
+		tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv"), emit: bacterial_fastq
 		tuple val(sample), path("adaptive_centrifuge_report.tsv"), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_reports
 		path("centrifuge.log")
 	when:
@@ -328,7 +328,7 @@ process centrifuge {
 	"""
 }
 
-process remove_centrifuge_contamined {
+process remove_centrifuge_contaminated {
     tag "${sample}"
     //label "very_high_memory"
     publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
@@ -337,7 +337,8 @@ process remove_centrifuge_contamined {
     input:
         tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv")
     output:
-        tuple val(sample), path("adaptive_centrifuge_bac_readID.lst"), path("non_adaptive_centrifuge_bac_readID.lst"), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq
+        tuple val(sample), path("adaptive_centrifuge_bac_readID.lst"), path("non_adaptive_centrifuge_bac_readID.lst"), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq_readID
+	tuple val(sample), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq
     when:
     !skip_centrifuge_remove_contaminated
     shell:
@@ -390,26 +391,33 @@ workflow {
 	}
 	extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
 	minimap(extract_adaptive_fastq.out.extracted_fastq)
-	if (!params.skip_assembly) {
-		flye(minimap.out.bacterial_fastq)
-		if (!params.skip_polishing) {
-			racon(flye.out.bacterial_assembly_fasta)
-			medaka(racon.out.polished_racon)
-		}
-	}
 	if (!params.skip_centrifuge) {
 		if (!params.skip_download_centrifuge_db) {
 			centrifuge_download_db(ch_centrifuge_db)
 			centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-		        remove_centrifuge_contaminated(centrifuge.out.bacterial_fastq)
-        	} else if (params.skip_download_centrifuge_db) {
-            		ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
-            		centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
-            		remove_centrifuge_contamined(centrifuge.out.bacterial_fastq)
-        	}
+		} else if (params.skip_download_centrifuge_db) {		        
+			ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
+			centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))			
+		}
+		remove_centrifuge_contaminated(centrifuge.out.bacterial_fastq)
+        	if (!params.skip_assembly) {
+			flye(remove_centrifuge_contaminated.out.bac_fastq)
+			if (!params.skip_polishing) {
+				racon(flye.out.bacterial_assembly_fasta)
+				medaka(racon.out.polished_racon)
+			}
+		}
         	if (!params.skip_krona) {
             		ch_krona_db=Channel.value( "${params.krona_db}")
             		krona(centrifuge.out.centrifuge_reports.combine(ch_krona_db))
         	}
-    	}
+    	}  else if (params.skip_centrifuge) { 
+		if (!params.skip_assembly) {
+			flye(minimap.out.bacterial_fastq)
+			if (!params.skip_polishing) {
+				racon(flye.out.bacterial_assembly_fasta)
+				medaka(racon.out.polished_racon)
+			}
+		}
+	}
 }
