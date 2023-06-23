@@ -331,9 +331,9 @@ process centrifuge {
 process remove_centrifuge_contamined {
     tag "${sample}"
     //label "very_high_memory"
-    publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
-    publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.fastq", saveAs: { filename -> "${sample}_$filename" }
-    //publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.fastq", saveAs: { filename -> "${sample}_$filename" }
+    //publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
     input:
         tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv")
     output:
@@ -401,11 +401,11 @@ workflow {
 		if (!params.skip_download_centrifuge_db) {
 			centrifuge_download_db(ch_centrifuge_db)
 			centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-		        remove_centrifuge_humanreads(centrifuge.out.bacterial_fastq)
+		        remove_centrifuge_contaminated(centrifuge.out.bacterial_fastq)
         	} else if (params.skip_download_centrifuge_db) {
             		ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
             		centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
-            		remove_centrifuge_humanreads(centrifuge.out.bacterial_fastq)
+            		remove_centrifuge_contamined(centrifuge.out.bacterial_fastq)
         	}
         	if (!params.skip_krona) {
             		ch_krona_db=Channel.value( "${params.krona_db}")
