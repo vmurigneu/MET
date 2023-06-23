@@ -46,6 +46,8 @@ def helpMessage() {
 	Centrifuge taxonomy classification:
 		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
 		--skip_centrifuge			Skip the centrifuge taxonomy classification step (default=false)
+		--centrifuge_reference_tax_ID		Taxonomy ID for reference ID (default="")
+		--skip_centrifuge_remove_contaminated	Skip the removal of centrifuge reads from contaminated reference
 		--centrifuge_threads			Number of threads for Centrifuge (default=12)
 		--skip_krona				Skip the generation of Krona plots (default=false)
 	
@@ -326,6 +328,28 @@ process centrifuge {
 	"""
 }
 
+process remove_centrifuge_contamined {
+    tag "${sample}"
+    //label "very_high_memory"
+    publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.fastq", saveAs: { filename -> "${sample}_$filename" }
+    //publishDir "$params.outdir/$sample/X_centrifuge_nonhuman_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+    input:
+        tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv")
+    output:
+        tuple val(sample), path("adaptive_centrifuge_bac_readID.lst"), path("non_adaptive_centrifuge_bac_readID.lst"), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq
+    when:
+    !skip_centrifuge_remove_contaminated
+    shell:
+    '''
+    set +eu
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > adaptive_centrifuge_bac_readID.lst
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"non_adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > non_adaptive_centrifuge_bac_readID.lst
+    seqtk subseq !{fastq_adaptive_bac} adaptive_centrifuge_bac_readID.lst > adaptive_bacterial.fastq
+    seqtk subseq !{fastq_non_adaptive_bac} non_adaptive_centrifuge_bac_readID.lst > non_adaptive_bacterial.fastq
+    '''
+}
+
 process krona {
 	cpus 1
 	tag "${sample}"
@@ -377,13 +401,15 @@ workflow {
 		if (!params.skip_download_centrifuge_db) {
 			centrifuge_download_db(ch_centrifuge_db)
 			centrifuge(minimap.out.bacterial_fastq.combine(centrifuge_download_db.out.centrifuge_db))
-		} else if (params.skip_download_centrifuge_db) {
-			ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
-			centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
-		}
-		if (!params.skip_krona) {
-			ch_krona_db=Channel.value( "${params.krona_db}")
-			krona(centrifuge.out.centrifuge_reports.combine(ch_krona_db))
-		}
-	}
- }
+		        remove_centrifuge_humanreads(centrifuge.out.bacterial_fastq)
+        	} else if (params.skip_download_centrifuge_db) {
+            		ch_centrifuge_db=Channel.fromPath( "${params.outdir}/centrifuge_database/*.cf" ).collect()
+            		centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))
+            		remove_centrifuge_humanreads(centrifuge.out.bacterial_fastq)
+        	}
+        	if (!params.skip_krona) {
+            		ch_krona_db=Channel.value( "${params.krona_db}")
+            		krona(centrifuge.out.centrifuge_reports.combine(ch_krona_db))
+        	}
+    	}
+}
