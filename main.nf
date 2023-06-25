@@ -190,10 +190,10 @@ process flye {
 	cpus "${params.flye_threads}"
 	tag "${sample}"
 	label "high_memory" 
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "non_adaptive_assembly*", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "*txt", saveAs: { filename -> "${sample}_$filename" }
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac)
 	output:
@@ -207,15 +207,23 @@ process flye {
 	'''
 	set +eu
 	flye --nano-hq !{fastq_adaptive_bac} --threads !{params.flye_threads} --out-dir \$PWD !{params.flye_args}
-	mv assembly.fasta adaptive_assembly_bac.fasta
-	mv assembly_info.txt adaptive_assembly_info_bac.txt
-	mv assembly_graph.gfa adaptive_assembly_graph_bac.gfa
-	mv assembly_graph.gv adaptive_assembly_graph_bac.gv
+	if [ -f "assembly.fasta" ]; then
+		mv assembly.fasta adaptive_assembly_bac.fasta
+		mv assembly_info.txt adaptive_assembly_info_bac.txt
+		mv assembly_graph.gfa adaptive_assembly_graph_bac.gfa
+		mv assembly_graph.gv adaptive_assembly_graph_bac.gv
+	else
+		touch adaptive_assembly_bac.fasta adaptive_assembly_info_bac.txt adaptive_assembly_graph_bac.gfa adaptive_assembly_graph_bac.gv
+	fi
 	flye --nano-hq !{fastq_non_adaptive_bac} --threads !{params.flye_threads} --out-dir \$PWD !{params.flye_args} 
-	mv assembly.fasta non_adaptive_assembly_bac.fasta
-	mv assembly_info.txt non_adaptive_assembly_info_bac.txt
-	mv assembly_graph.gfa non_adaptive_assembly_graph_bac.gfa
-	mv assembly_graph.gv non_adaptive_assembly_graph_bac.gv
+	if [ -f "assembly.fasta" ]; then
+		mv assembly.fasta non_adaptive_assembly_bac.fasta
+		mv assembly_info.txt non_adaptive_assembly_info_bac.txt
+		mv assembly_graph.gfa non_adaptive_assembly_graph_bac.gfa
+		mv assembly_graph.gv non_adaptive_assembly_graph_bac.gv
+	else
+		touch non_adaptive_assembly_bac.fasta non_adaptive_assembly_info_bac.txt non_adaptive_assembly_graph_bac.gfa non_adaptive_assembly_graph_bac.gv
+	fi
 	flye -v 2> flye_version.txt
 	cp .command.log flye.log
 	'''  
@@ -225,9 +233,9 @@ process racon {
 	cpus "${params.racon_threads}"
 	tag "${sample}"
 	label "racon"
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt"
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "*_version.txt"
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly) 
 	output:
@@ -262,10 +270,9 @@ process medaka {
 	cpus "${params.medaka_threads}"
 	tag "${sample}"
 	label "medaka"
-	
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/5_assembly",  mode: 'copy', pattern: "*_version.txt" 
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: '*fasta', saveAs: { filename -> "${sample}_$filename"}
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: '*log', saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/6_assembly",  mode: 'copy', pattern: "*_version.txt" 
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_draft), path(fastq_non_adaptive_bac), path(non_adaptive_draft)
 	output:
@@ -279,10 +286,18 @@ process medaka {
 	set +eu
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta adaptive_assembly_polished.fasta
+	if [ -f "consensus.fasta" ]; then
+		mv consensus.fasta adaptive_flye_polished.fasta
+	else
+		touch adaptive_flye_polished.fasta
+	fi
 	medaka_consensus -i ${fastq_adaptive_bac} -d ${non_adaptive_draft} -o \$PWD -t ${params.medaka_threads} -m ${params.medaka_model}
 	rm consensus_probs.hdf calls_to_draft.bam calls_to_draft.bam.bai
-	cp consensus.fasta non_adaptive_assembly_polished.fasta 
+	if [ -f "consensus.fasta" ]; then
+		mv consensus.fasta non_adaptive_flye_polished.fasta 
+	else
+		touch non_adaptive_flye_polished.fasta
+	fi
 	cp .command.log medaka.log
 	medaka --version > medaka_version.txt
  	"""
@@ -316,7 +331,7 @@ process centrifuge {
 		tuple val(sample), path(fastq_adaptive_bac), path(fastq_non_adaptive_bac), path(db1), path(db2), path(db3), path(db4)
 	output:
 		tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv"), emit: bacterial_fastq
-		tuple val(sample), path("adaptive_centrifuge_report.tsv"), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_reports
+		tuple val(sample), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_species_report
 		path("centrifuge.log")
 	when:
 	!params.skip_centrifuge
@@ -331,13 +346,14 @@ process centrifuge {
 process remove_centrifuge_contaminated {
     tag "${sample}"
     //label "very_high_memory"
-    publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
-    publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.fastq", saveAs: { filename -> "${sample}_$filename" }
-    //publishDir "$params.outdir/$sample/X_centrifuge_bac_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/5_centrifuge_bac_reads",  mode: 'copy', pattern: "*.lst", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/5_centrifuge_bac_reads",  mode: 'copy', pattern: "*.fastq", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/5_centrifuge_bac_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
     input:
         tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv")
     output:
         tuple val(sample), path("adaptive_centrifuge_bac_readID.lst"), path("non_adaptive_centrifuge_bac_readID.lst"), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq_readID
+	tuple val(sample), path("adaptive_centrifuge_species_report_filtered.tsv"), path("non_adaptive_centrifuge_species_report_filtered.tsv"), emit: input_krona
 	tuple val(sample), path("adaptive_bacterial.fastq"), path("non_adaptive_bacterial.fastq"), emit: bac_fastq
     when:
     !skip_centrifuge_remove_contaminated
@@ -348,21 +364,24 @@ process remove_centrifuge_contaminated {
     awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"non_adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > non_adaptive_centrifuge_bac_readID.lst
     seqtk subseq !{fastq_adaptive_bac} adaptive_centrifuge_bac_readID.lst > adaptive_bacterial.fastq
     seqtk subseq !{fastq_non_adaptive_bac} non_adaptive_centrifuge_bac_readID.lst > non_adaptive_bacterial.fastq
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"adaptive_centrifuge_species_report.tsv"} > adaptive_centrifuge_species_report_filtered.tsv
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"non_adaptive_centrifuge_species_report.tsv"} > non_adaptive_centrifuge_species_report_filtered.tsv
+    cp .command.log remove_centrifuge_contaminated.log
     '''
 }
 
 process krona {
 	cpus 1
 	tag "${sample}"
-	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*krona.html", saveAs: { filename -> "${sample}_$filename" }
-	publishDir "$params.outdir/$sample/4_centrifuge",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_centrifuge_bac_reads",  mode: 'copy', pattern: "*krona.html", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/5_centrifuge_bac_reads",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
 	input:
-		tuple val(sample), path(adaptive_report), path(adaptive_species_report), path(non_adaptive_report), path(non_adaptive_species_report), path(krona_database)
+		tuple val(sample), path(adaptive_species_report), path(non_adaptive_species_report), path(krona_database)
 	output:
 		tuple val(sample), path("adaptive_centrifuge_taxonomy.krona.html"), path("non_adaptive_centrifuge_taxonomy.krona.html"), emit: krona_html
 		path("krona.log")
 	when:
-	!params.skip_krona
+	!params.skip_krona | !params.skip_centrifuge
 	script:
 	"""
 	set +eu
@@ -373,7 +392,6 @@ process krona {
 	cp .command.log krona.log
 	"""
 }
-
 
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
@@ -400,17 +418,17 @@ workflow {
 			centrifuge(minimap.out.bacterial_fastq.combine(ch_centrifuge_db))			
 		}
 		remove_centrifuge_contaminated(centrifuge.out.bacterial_fastq)
-        	if (!params.skip_assembly) {
+		if (!params.skip_krona) {
+			ch_krona_db=Channel.value( "${params.krona_db}")
+			krona(remove_centrifuge_contaminated.out.input_krona.combine(ch_krona_db))
+		}
+		if (!params.skip_assembly) {
 			flye(remove_centrifuge_contaminated.out.bac_fastq)
 			if (!params.skip_polishing) {
 				racon(flye.out.bacterial_assembly_fasta)
 				medaka(racon.out.polished_racon)
 			}
 		}
-        	if (!params.skip_krona) {
-            		ch_krona_db=Channel.value( "${params.krona_db}")
-            		krona(centrifuge.out.centrifuge_reports.combine(ch_krona_db))
-        	}
     	}  else if (params.skip_centrifuge) { 
 		if (!params.skip_assembly) {
 			flye(minimap.out.bacterial_fastq)
