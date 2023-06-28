@@ -158,7 +158,7 @@ process minimap {
 		path("*fastq")
 		path("*txt")
 	when:
-	!params.skip_remove_human_reads
+	!params.skip_remove_host_reads
 	shell:
 	'''
 	set +eu
@@ -169,14 +169,14 @@ process minimap {
 		samtools sort -o ${type}.bam -@ !{params.minimap_threads} ${type}.sam
 		samtools index ${type}.bam 
 		samtools flagstat ${type}.bam > ${type}.flagstat.txt
-		samtools view -S -f 4 -b ${type}.bam -o ${type}_non_human.unsorted.bam
-		samtools sort -o ${type}_non_human.bam -@ !{params.minimap_threads} ${type}_non_human.unsorted.bam
-  		samtools index ${type}_non_human.bam
- 		samtools flagstat ${type}_non_human.bam > ${type}_non_human.flagstat.txt
-        	samtools view ${type}_non_human.bam | cut -f1 | sort | uniq > ${type}_non_human_readID.lst
+		samtools view -S -f 4 -b ${type}.bam -o ${type}_non_host.unsorted.bam
+		samtools sort -o ${type}_non_host.bam -@ !{params.minimap_threads} ${type}_non_host.unsorted.bam
+  		samtools index ${type}_non_host.bam
+ 		samtools flagstat ${type}_non_host.bam > ${type}_non_host.flagstat.txt
+        	samtools view ${type}_non_host.bam | cut -f1 | sort | uniq > ${type}_non_host_readID.lst
 	done
-	seqtk subseq !{fastq_adaptive} adaptive_non_human_readID.lst > adaptive_bac.fastq
-	seqtk subseq !{fastq_non_adaptive} non_adaptive_non_human_readID.lst > non_adaptive_bac.fastq
+	seqtk subseq !{fastq_adaptive} adaptive_non_host_readID.lst > adaptive_bac.fastq
+	seqtk subseq !{fastq_non_adaptive} non_adaptive_non_host_readID.lst > non_adaptive_bac.fastq
 	cp .command.log minimap.log
 	'''
 }
