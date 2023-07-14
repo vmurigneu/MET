@@ -111,7 +111,7 @@ process extract_adaptive_readID {
         shell:
         '''
         set +eu
-	awk -F, '$7 = "no_decision" {print $0}' !{csv} | cut -d" " -f5 | tail -n +2 | sort | uniq > adaptive_reads.txt	
+	awk -F, '$7 == "stop_receiving" {print $0}' !{csv} | cut -d"," -f5 | tail -n +2 | sort | uniq > adaptive_reads.txt	
 	seqkit fx2tab !{reads} | awk '{print $1, $5}' - | sed 's/=/ /' | cut -d" " -f1,3 | awk '$2 > 256 {print $1}' - | sort | uniq > non_adaptive_reads.txt   
 	cp .command.log extract_adaptive_readID.log
         '''
@@ -332,6 +332,7 @@ process centrifuge {
 	output:
 		tuple val(sample), path(fastq_adaptive_bac), path("adaptive_centrifuge_species_report.tsv"), path(fastq_non_adaptive_bac), path("non_adaptive_centrifuge_species_report.tsv"), emit: bacterial_fastq
 		tuple val(sample), path("adaptive_centrifuge_species_report.tsv"), path("non_adaptive_centrifuge_species_report.tsv"), emit: centrifuge_species_report
+		tuple val(sample), path("adaptive_centrifuge_report.tsv"), path("non_adaptive_centrifuge_report.tsv"), emit: centrifuge_report
 		path("centrifuge.log")
 	when:
 	!params.skip_centrifuge
