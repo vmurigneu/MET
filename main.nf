@@ -361,8 +361,12 @@ process remove_centrifuge_contaminated {
     shell:
     '''
     set +eu
-    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > adaptive_centrifuge_bac_readID.lst
-    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"non_adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > non_adaptive_centrifuge_bac_readID.lst
+    awk '$3 ~ !{params.centrifuge_reference_tax_ID}' !{"adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > adaptive_centrifuge_host_readID.lst
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > adaptive_centrifuge_bac_host_readID.lst
+    awk -v FS="[\t= ]" ' FNR==NR { a[$1]=$1; next } !($1 in a){print $0}' adaptive_centrifuge_host_readID.lst adaptive_centrifuge_bac_host_readID.lst > adaptive_centrifuge_bac_readID.lst
+    awk '$3 ~ !{params.centrifuge_reference_tax_ID}' !{"non_adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > non_adaptive_centrifuge_host_readID.lst
+    awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"non_adaptive_centrifuge_species_report.tsv"} | cut -f1 | sort | uniq > non_adaptive_centrifuge_bac_host_readID.lst
+    awk -v FS="[\t= ]" ' FNR==NR { a[$1]=$1; next } !($1 in a){print $0}' non_adaptive_centrifuge_host_readID.lst non_adaptive_centrifuge_bac_host_readID.lst > non_adaptive_centrifuge_bac_readID.lst
     seqtk subseq !{fastq_adaptive_bac} adaptive_centrifuge_bac_readID.lst > adaptive_bacterial.fastq
     seqtk subseq !{fastq_non_adaptive_bac} non_adaptive_centrifuge_bac_readID.lst > non_adaptive_bacterial.fastq
     awk '$3 !~ !{params.centrifuge_reference_tax_ID} || $3 ~ /taxID/' !{"adaptive_centrifuge_species_report.tsv"} > adaptive_centrifuge_species_report_filtered.tsv
