@@ -30,13 +30,14 @@ def helpMessage() {
 	
 	Porechop: 
         	--porechop_args				Porechop optional parameters (default=""), see https://github.com/rrwick/Porechop#full-usage
-		--porechop_threads			Number of threads for Porechop (default=4) (default=4)
+		--porechop_threads			Number of threads for Porechop (default=4) 
 		--skip_porechop				Skip the Porechop trimming step (default=false)
     
 	Adaptive Read Sequencing: 
-	
+		--skip_adaptive_sampling_metrics	Skip the Adaptive sampling metrics step (default=false)
+		--nanocomp_threads			Number of threads for NanoComp (default=4)
 	Mapping: 
-        	--minimap_threads			Number of threads for Porechop (default=12)
+        	--minimap_threads			Number of threads for Minimap2 (default=12)
     
 	Flye Assembly: 
         	--flye_threads          		Number of threads for Flye (default=?)
@@ -111,7 +112,7 @@ process extract_adaptive_readID {
         shell:
         '''
         set +eu
-	awk -F, '$7 == "stop_receiving" {print $0}' !{csv} | cut -d"," -f5 | tail -n +2 | sort | uniq > adaptive_reads.txt	
+	awk -F, '$7 == "stop_receiving" {print $0}' !{csv} | cut -d"," -f5 | sort | uniq > adaptive_reads.txt	
 	seqkit fx2tab !{reads} | awk '{print $1, $5}' - | sed 's/=/ /' | cut -d" " -f1,3 | awk '$2 > 256 {print $1}' - | sort | uniq > non_adaptive_reads.txt   
 	cp .command.log extract_adaptive_readID.log
         '''
@@ -140,6 +141,65 @@ process extract_adaptive_fastq {
         seqtk subseq !{reads} !{readID_nonadaptive} > non_adaptive.fastq
         cp .command.log extract_adaptive_fastq.log
         '''
+}
+
+process extract_adaptive_sampling_reads {
+	tag "${sample}"
+	label "cpu"
+	label "high_memory"
+	publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*.log", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: "*_version.txt"
+	publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: '*fastq', saveAs: { filename -> "${sample}_$filename" }
+	input:	
+		tuple val(sample), path(reads), path(csv)
+	output:
+		tuple val(sample),path("stopreceiving.fastq"),path("nodecision.fastq"),path("unblock.fastq"), emit: extracted_fastq
+		path("extract_adaptive_fastq.log")
+		path("*nodecision.fastq")
+		path("unblock.fastq")
+	when:
+	!params.skip_adaptive_sampling_metrics
+	shell:
+	'''
+	set +eu
+	awk -F, '$7 == "stop_receiving" {print $0}' !{csv} | cut -d"," -f5 | sort | uniq | sort > readID_stop_receiving.txt
+	awk -F, '$7 == "no_decision" {print $0}' !{csv} | cut -d"," -f5 | sort | uniq | sort > readID_no_decision.txt
+	awk -F, '$7 == "unblock" {print $0}' !{csv} | cut -d"," -f5 | sort | uniq | sort > readID_unblock.txt
+	comm -12 readID_no_decision.txt readID_unblock.txt > comm_nodecision_unblock.txt 
+	awk -v FS="[\t= ]" ' FNR==NR { a[$1]=$1; next } !($1 in a){print $0}' readID_no_decision.txt readID_unblock.txt > readID_unblock_not_no_decision.txt
+	cat readID_unblock_not_no_decision.txt comm_nodecision_unblock.txt | sort | uniq > readID_unblock_unique.txt 
+	awk -v FS="[\t= ]" ' FNR==NR { a[$1]=$1; next } !($1 in a){print $0}' readID_unblock.txt readID_no_decision.txt > readID_unique_no_decision_unblock.txt
+	awk -v FS="[\t= ]" ' FNR==NR { a[$1]=$1; next } !($1 in a){print $0}' readID_stop_receiving.txt readID_unique_no_decision_unblock.txt > readID_no_decision_unique.txt
+	seqtk subseq !{reads} readID_stop_receiving.txt > stopreceiving.fastq
+	seqtk subseq !{reads} readID_no_decision_unique.txt > nodecision.fastq
+	seqtk subseq !{reads} readID_unblock_unique.txt > unblock.fastq
+	nb_reads=`cut -d"," -f5  !{csv} | tail -n +2 | sort | uniq | sort | wc -l`
+	echo -e !{sample}\\t$nb_reads >> nbReads_AS_csv.txt
+ 	cp .command.log extract_adaptive_fastq.log
+	'''
+}
+
+process compute_adaptive_sampling_metrics {
+	tag "${sample}"
+	label "cpu"
+	publishDir "$params.outdir/$sample/2_adaptive",  mode: 'copy', pattern: '*txt', saveAs: { filename -> "${sample}_$filename" }
+	input:  
+		tuple val(sample), path(fq_stopreceiving), path(fq_unblock), path(fq_nodecision)
+	output:
+		tuple val(sample),path("NanoStats.txt")
+	when:
+	!params.skip_adaptive_sampling_metrics
+	shell:
+	'''
+	set +eu
+	NanoComp -o \$PWD --fastq !{fq_stopreceiving} !{fq_unblock} !{fq_nodecision} -t !{params.nanocomp_threads} -n stop_receiving unblock no_decision
+	grep "N50" NanoStats.txt | tr -d ' ' | sed s/ReadlengthN50:// | sed s/\\.0/\\t/g >> ReadN50.txt
+ 	grep "Number" NanoStats.txt| grep reads | grep -v percentage | tr -d ' ' | sed s/Numberofreads://| sed s/\\.0/\\t/g  >> NbReads.txt
+	grep "Median" NanoStats.txt | grep length |tr -d ' ' | sed s/Medianreadlength:// | sed s/\\.0/\\t/g >> MedianReadLength.txt
+	grep "Median" NanoStats.txt | grep quality |tr -s ' ' | sed s/^Median\\sread\\squality:// | sed s/\\s/\\t/g | sed s/^\\s//g >> MedianReadQuality.txt
+	echo !{sample} >> samples.txt
+	cp .command.log compute_adaptive_sampling_metrics.log
+	'''
 }
 
 process minimap {
@@ -413,6 +473,10 @@ workflow {
 		extract_adaptive_readID(ch_samplesheet)
 	}
 	extract_adaptive_fastq(extract_adaptive_readID.out.extracted_readID)
+	if (!params.skip_adaptive_sampling_metrics) {
+		extract_adaptive_sampling_reads(ch_samplesheet)
+		compute_adaptive_sampling_metrics(extract_adaptive_sampling_reads.out.extracted_fastq)
+	}
 	minimap(extract_adaptive_fastq.out.extracted_fastq)
 	if (!params.skip_centrifuge) {
 		if (!params.skip_download_centrifuge_db) {
