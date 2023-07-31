@@ -153,7 +153,7 @@ process extract_adaptive_sampling_reads {
 	input:	
 		tuple val(sample), path(reads), path(csv)
 	output:
-		tuple val(sample),path("stopreceiving.fastq"),path("nodecision.fastq"),path("unblock.fastq"), emit: extracted_fastq
+		tuple val(sample),path("stopreceiving.fastq"),path("unblock.fastq"),path("nodecision.fastq"), emit: extracted_fastq
 		path("extract_adaptive_fastq.log")
 		path("*nodecision.fastq")
 		path("unblock.fastq")
