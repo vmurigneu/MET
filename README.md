@@ -1,11 +1,13 @@
 # Adaptive sequencing for metagenomic sequencing of low biomass samples
 
+The project aimed to develop a field-friendly adaptive sequencing pipeline to increase sensitivity of metagenomic sequencing of low biomass samples.
+A bioinformatic pipeline was developed to automate the analysis of the metagenomic samples sequenced on the ONT MinION platform. 
 
 Read more about the project developed at the University of Queensland Genome Innovation Hub: https://gih.uq.edu.au/project/adaptive-sequencing-metagenomic-sequencing-low-biomass-samples
 
 ## Overall pipeline 
 
-### 1. C
+### 1. Porechop
 
 The 
 
@@ -49,3 +51,17 @@ An example configuration file can be found [here](https://github.com/vmurigneu/D
 **f) Nextflow main script (main.nf)**
 
 The main.nf script contains the pipeline code and is generally not user-modifiable. 
+
+## Structure of the output folders
+
+The pipeline will create several folders corresponding to the different steps of the pipeline. 
+The main output folder (`--outdir`) will contain a folder per sample (the folder is named as in the column sample_id in the samplesheet file)
+
+Each sample folder will contain the following folders:
+* **1_trimming:** Fastq files containing filtered reads (sample_id_trimmed.fastq.gz) 
+* **2_adaptive:** Fastq files containing the adaptive (sample_id_adaptive.fastq) and non-adaptive reads (sample_id_non_adaptive.fastq)
+* **3_minimap:** 
+* **4_centrifuge:** 
+* **5_centrifuge_bac_reads:** QUAST quality assessment report, see [details](http://quast.sourceforge.net/docs/manual.html)
+* **6_assembly:** Flye assembly output files (.fasta, .gfa, .gv, .info.txt), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md#-flye-output). The final polished asssembly fasta files are sample_id_adaptive_flye_polished.fasta and sample_id_non_adaptive_flye_polished.fasta.  
+
