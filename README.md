@@ -58,10 +58,15 @@ The pipeline will create several folders corresponding to the different steps of
 The main output folder (`--outdir`) will contain a folder per sample (the folder is named as in the column sample_id in the samplesheet file)
 
 Each sample folder will contain the following folders:
-* **1_trimming:** Fastq files containing filtered reads (sample_id_trimmed.fastq.gz) 
-* **2_adaptive:** Fastq files containing the adaptive (sample_id_adaptive.fastq) and non-adaptive reads (sample_id_non_adaptive.fastq)
-* **3_minimap:** 
-* **4_centrifuge:** 
-* **5_centrifuge_bac_reads:** QUAST quality assessment report, see [details](http://quast.sourceforge.net/docs/manual.html)
+* **1_trimming:** Fastq files containing trimmed reads (sample_id_trimmed.fastq.gz) 
+* **2_adaptive:** Fastq files containing the adaptive reads (sample_id_adaptive.fastq) and non-adaptive reads (sample_id_non_adaptive.fastq) in separate files
+* **3_minimap:** Fastq files containing the host removed reads after the Minimap2 mapping step for the adaptive (sample_id_adaptive_bac.fastq) and non-adaptive reads (sample_id_non_adaptive_bac.fastq)  
+* **4_centrifuge:** Centrifuge taxonomy classification results for the host removed reads for both adaptive and non-adaptive reads, see [details](https://ccb.jhu.edu/software/centrifuge/manual.shtml#centrifuge-classification-output)  
+  * Centrifuge classification output: classification assignments for a read (*_centrifuge_species_report.tsv)  
+  * Centrifuge summary output: classification summary for each genome or taxonomic unit (*_centrifuge_report.tsv)   
+* **5_centrifuge_bac_reads:**  
+  * Fastq files containing the host removed reads after both Minimap2 and Centrifuge steps (sample_id_adaptive_bacterial.fastq and sample_id_non_adaptive_bacterial.fastq)
+  * List of host removed read identifiers (sample_id_adaptive_centrifuge_bac_readID.lst and sample_id_non_adaptive_centrifuge_bac_readID.lst)
+  * Krona pie chart HTML report for the host removed reads (after both Minimap2 and Centrifuge steps)  
 * **6_assembly:** Flye assembly output files (.fasta, .gfa, .gv, .info.txt), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md#-flye-output). The final polished asssembly fasta files are sample_id_adaptive_flye_polished.fasta and sample_id_non_adaptive_flye_polished.fasta.  
 
