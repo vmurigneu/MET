@@ -9,11 +9,27 @@ Read more about the project developed at the University of Queensland Genome Inn
 
 ### 1. Porechop
 
-The 
+The reads are trimmed for adapters using [Porechop](https://github.com/rrwick/Porechop). 
 
-### 2. 
+### 2. Extraction of adaptive and non-adaptive reads
 
-The
+The trimmed reads are splitted into two fastq files: the adaptive reads (Adaptive sampling channel number 1-256) and the non-adaptive reads (Regular sequencing channel : 257-512). The adaptive reads are selected based on the adaptive sampling report (classified as "stop_receiving reads").   
+
+### 3. Adaptive sampling metrics 
+
+[Nanocomp](https://github.com/wdecoster/nanocomp) is used to compute metrics (Median Read Length, Read N50, Median Read Quality) for the different categories of adaptive sampling reads: stop_receiving, unblock and no_decision. 
+
+### 4. Minimap2 mapping
+
+The adaptive and non-adaptive reads are mapped to the reference genome provided by the user using [Minimap2](https://github.com/lh3/minimap2). Host reads identified by Minimap2 are excluded from the fastq files. 
+
+### 5. Centrifuge taxonomy classification
+
+Host removed reads from the previous step are used as input to the classifier [Centrifuge](https://ccb.jhu.edu/software/centrifuge/). Host reads identified by Centrifuge are subsequently excluded from the fastq files. The taxonomy ID of the reference genome is a required parameter of the pipeline: "centrifuge_reference_tax_ID" (e.g. "9606" for Homo sapiens or "9913" for Bos taurus). [Krona](https://github.com/marbl/Krona/wiki) is then used to visualise the taxonomy results as pie charts. 
+
+### 6. Flye assembly and polishing
+
+The host removed reads (adaptive and non-adaptive) are assembled using the software [Flye](https://github.com/fenderglass/Flye) (metagenome mode). The draft assemblies are subsequently polished using [Racon](https://github.com/isovic/racon) and [Medaka](https://github.com/nanoporetech/medaka). The model parameter selected to run Medaka (e.g. r1041_e82_400bps_sup_g615) should correspond to the model used for the basecalling (e.g. r1041_e82_400bps_sup_g615).  
 
 ## Usage
 
@@ -21,6 +37,7 @@ The
 
 **a) Basecalled read files (fastq)**
 
+The basecalling step is not included in the pipeline. Raw ONT fast5 files needs to be converted into basecalled reads using Guppy. 
 
 **b) Adaptive sampling report file (csv)**
 
