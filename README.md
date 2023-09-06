@@ -29,7 +29,7 @@ Host removed reads from the previous step are used as input to the classifier [C
 
 ### 6. Flye assembly and polishing
 
-The host removed reads (adaptive and non-adaptive) are assembled using the software [Flye](https://github.com/fenderglass/Flye) (metagenome mode). The draft assemblies are subsequently polished using [Racon](https://github.com/isovic/racon) and [Medaka](https://github.com/nanoporetech/medaka). The model parameter selected to run Medaka (e.g. r1041_e82_400bps_sup_g615) should correspond to the model used for the basecalling (e.g. r1041_e82_400bps_sup_g615).  
+The host removed reads (adaptive and non-adaptive) are assembled using the software [Flye](https://github.com/fenderglass/Flye) (metagenome mode). The draft assemblies are subsequently polished using [Racon](https://github.com/isovic/racon) and [Medaka](https://github.com/nanoporetech/medaka). The model parameter selected to run Medaka (e.g. r1041_e82_400bps_sup_g615) should correspond to the model used for the basecalling (e.g. dna_r10.4.1_e8.2_400bps_sup.cfg).  
 
 ## Usage
 
@@ -68,6 +68,44 @@ An example configuration file can be found [here](https://github.com/vmurigneu/D
 **f) Nextflow main script (main.nf)**
 
 The main.nf script contains the pipeline code and is generally not user-modifiable. 
+
+## Optional parameters
+
+Some parameters can be added to the command line in order to include or skip some steps and modify some parameters:
+
+Adapter trimming:
+* `--porechop_args`: Porechop optional parameters (default=""), see [details](https://github.com/rrwick/Porechop#full-usage)
+* `--porechop_threads`: number of threads for Porechop (default=4)
+* `--skip_porechop`: skip the Porechop trimming step (default=false)
+
+Adaptive Sampling Read Sequencing: :
+* `--skip_adaptive_sampling_metrics`: skip the Adaptive sampling metrics step (default=false)
+* `--nanocomp_threads`: Number of threads for NanoComp (default=4)
+
+Mapping: 
+* `--minimap_threads`: Number of threads for Minimap2 (default=12)
+
+Taxonomy classification:
+* `--skip_download_centrifuge_db`: skip the centrifuge database downloading step (default=false)
+* `--skip_centrifuge`: skip the centrifuge taxonomy classification step (default=false)
+* `--centrifuge_db`: path to download the centrifuge database (default='https://genome-idx.s3.amazonaws.com/centrifuge/nt_2018_3_3.tar.gz')
+* `--centrifuge_reference_tax_ID`: Taxonomy ID for reference genome (default='9606' for homo sapiens)
+* `--skip_centrifuge_remove_contaminated`: skip the emoval of centrifuge reads from contaminated reference step (default=false)
+* `--centrifuge_threads`: number of threads for Centrifuge (default=12)
+* `--skip_krona`: skip the generation of Krona plots (default=false)
+ 
+Assembly:
+* `--flye_args`: Flye optional parameters (default=`--flye_args "--meta"`), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md)
+* `--flye_threads`: number of threads for Flye (default=4)
+* `--memory`: Memory usage for Flye (default=0)
+* `--skip_assembly`: skip the metagenome assembly step (default=false)
+
+Polishing:
+* `--racon_nb`: number of Racon long-read polishing iterations (default=4)
+* `--racon_args`: Racon optional parameters (default="-m 8 -x -6 -g -8 -w 500"), see [details](https://github.com/isovic/racon#usage)
+* `--racon_threads`: number of threads for Racon (default=4)
+* `--medaka_threads`: number of threads for Medaka (default=8)
+* `--medaka_model`: name of the Medaka model (default=r1041_e82_400bps_sup_g615, see [details](https://github.com/nanoporetech/medaka#models)
 
 ## Structure of the output folders
 
