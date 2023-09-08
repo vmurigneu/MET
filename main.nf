@@ -40,13 +40,15 @@ def helpMessage() {
         	--minimap_threads			Number of threads for Minimap2 (default=12)
     
 	Flye Assembly: 
-        	--flye_threads          		Number of threads for Flye (default=?)
+		--flye_args				Flye optional parameters (default=`--flye_args "-meta"), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md)
+		--flye_threads          		Number of threads for Flye (default=?)
         	--memory                		Memory usage for Flye (default=0)
-		--skip_assembly				Skipt the metagenome assembly (default=false)
+		--skip_assembly				Skip the metagenome assembly step (default=false)
 
 	Centrifuge taxonomy classification:
 		--skip_download_centrifuge_db		Skip the centrifuge database downloading step (default=false)
 		--skip_centrifuge			Skip the centrifuge taxonomy classification step (default=false)
+		--centrifuge_db				Path to download the centrifuge database (default='https://genome-idx.s3.amazonaws.com/centrifuge/nt_2018_3_3.tar.gz')
 		--centrifuge_reference_tax_ID		Taxonomy ID for reference ID (default="")
 		--skip_centrifuge_remove_contaminated	Skip the removal of centrifuge reads from contaminated reference
 		--centrifuge_threads			Number of threads for Centrifuge (default=12)
@@ -336,7 +338,7 @@ process medaka {
 	input:
 		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_draft), path(fastq_non_adaptive_bac), path(non_adaptive_draft)
 	output:
-		tuple val(sample), path(adaptive_draft), path ("adaptive_flye_polished.fasta"), path(non_adaptive_draft), path ("non_adaptive_flye_polished.fasta"), emit: polished_medaka
+		tuple val(sample), path(fastq_adaptive_bac), path ("adaptive_flye_polished.fasta"), path(fastq_non_adaptive_bac), path ("non_adaptive_flye_polished.fasta"), emit: polished_medaka
 	path("medaka.log")
 	path("medaka_version.txt")
 	when:
@@ -458,6 +460,41 @@ process krona {
 	"""
 }
 
+process whokaryote {
+	cpus "${params.whokaryote_threads}"
+	tag "${sample}"
+	publishDir "$params.outdir/$sample/7_whokaryote",  mode: 'copy', pattern: "{*sv}", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/7_whokaryote",  mode: 'copy', saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly)
+	output:
+		tuple val(sample), path("adaptive_whokaryote_predictions_T.tsv"), path("non_adaptive_whokaryote_predictions_T.tsv"), emit: whokaryote_prediction
+		tuple val(sample), path("adaptive_featuretable_predictions_T.tsv"), path("adaptive_featuretable.csv"), path("adaptive_contigs_genes.gff"), path("adaptive_contigs_proteins.faa"), path("adaptive_tiara_pred.txt"), path("non_adaptive_featuretable_predictions_T.tsv"), path("non_adaptive_featuretable.csv"), path("non_adaptive_contigs_genes.gff"), path("non_adaptive_contigs_proteins.faa"), path("non_adaptive_tiara_pred.txt"), emit: whokaryote_results
+		path("whokaryote.log")
+	when:
+	!params.skip_whokaryote | !params.skip_assembly
+	script:
+	"""
+	set +eu
+	whokaryote.py --contigs ${adaptive_assembly} --outdir \$PWD --threads ${params.whokaryote_threads} 
+	mv whokaryote_predictions_T.tsv adaptive_whokaryote_predictions_T.tsv
+	mv featuretable_predictions_T.tsv adaptive_featuretable_predictions_T.tsv
+	mv featuretable.csv adaptive_featuretable.csv
+	mv contigs_genes.gff adaptive_contigs_genes.gff
+	mv contigs_proteins.faa adaptive_contigs_proteins.faa
+	mv tiara_pred.txt adaptive_tiara_pred.txt
+	mv contigs5000.fasta adaptive_contigs5000.fasta
+	whokaryote.py --contigs ${non_adaptive_assembly} --outdir \$PWD --threads ${params.whokaryote_threads}
+	mv whokaryote_predictions_T.tsv non_adaptive_whokaryote_predictions_T.tsv
+	mv featuretable_predictions_T.tsv non_adaptive_featuretable_predictions_T.tsv
+	mv featuretable.csv non_adaptive_featuretable.csv
+	mv contigs_genes.gff non_adaptive_contigs_genes.gff
+	mv contigs_proteins.faa non_adaptive_contigs_proteins.faa
+	mv tiara_pred.txt non_adaptive_tiara_pred.txt
+ 	cp .command.log whokaryote.log
+	"""
+}
+
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
 	ch_centrifuge_db.view()
@@ -496,6 +533,9 @@ workflow {
 			if (!params.skip_polishing) {
 				racon(flye.out.bacterial_assembly_fasta)
 				medaka(racon.out.polished_racon)
+				whokaryote(medaka.out.polished_medaka)
+			} else if (params.skip_polishing) {
+				whokaryote(flye.out.bacterial_assembly_fasta)
 			}
 		}
     	}  else if (params.skip_centrifuge) { 
@@ -504,6 +544,9 @@ workflow {
 			if (!params.skip_polishing) {
 				racon(flye.out.bacterial_assembly_fasta)
 				medaka(racon.out.polished_racon)
+				whokaryote(medaka.out.polished_medaka)
+			} else if (params.skip_polishing) {
+				whokaryote(flye.out.bacterial_assembly_fasta)
 			}
 		}
 	}
