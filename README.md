@@ -25,7 +25,7 @@ The adaptive and non-adaptive reads are mapped to the reference genome provided 
 
 ### 5. Centrifuge taxonomy classification
 
-Host removed reads from the previous step are used as input to the classifier [Centrifuge](https://ccb.jhu.edu/software/centrifuge/). Host reads identified by Centrifuge are subsequently excluded from the fastq files. The taxonomy ID of the reference genome is a required parameter of the pipeline: "centrifuge_reference_tax_ID" (e.g. "9606" for Homo sapiens or "9913" for Bos taurus). [Krona](https://github.com/marbl/Krona/wiki) is then used to visualise the taxonomy results as pie charts. 
+Host removed reads from the previous step are used as input to the classifier [Centrifuge](https://ccb.jhu.edu/software/centrifuge/). Host reads identified by Centrifuge are subsequently excluded from the fastq files. The taxonomy ID of the reference genome is a required parameter of the pipeline: "centrifuge_reference_tax_ID" (e.g. "9606" for Homo sapiens or "9913" for Bos taurus). [Krona](https://github.com/marbl/Krona/wiki) is then used to visualise the taxonomy results as pie charts. Users can search for their host taxonomy ID on the [NCBI taxonomy browser](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi) -- please note that since the centrifuge database is not updated regularly, certain taxa listed on NCBI will not have a match in centrifuge and will thus produce an error.    
 
 ### 6. Flye assembly and polishing
 
