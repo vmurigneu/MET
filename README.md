@@ -25,7 +25,7 @@ The adaptive and non-adaptive reads are mapped to the reference genome provided 
 
 ### 5. Centrifuge taxonomy classification
 
-Host removed reads from the previous step are used as input to the classifier [Centrifuge](https://ccb.jhu.edu/software/centrifuge/). Host reads identified by Centrifuge are subsequently excluded from the fastq files. The taxonomy ID of the reference genome is a required parameter of the pipeline: "centrifuge_reference_tax_ID" (e.g. "9606" for Homo sapiens or "9913" for Bos taurus). [Krona](https://github.com/marbl/Krona/wiki) is then used to visualise the taxonomy results as pie charts. 
+Host removed reads from the previous step are used as input to the classifier [Centrifuge](https://ccb.jhu.edu/software/centrifuge/). Host reads identified by Centrifuge are subsequently excluded from the fastq files. The taxonomy ID of the reference genome is a required parameter of the pipeline: "centrifuge_reference_tax_ID" (e.g. "9606" for Homo sapiens or "9913" for Bos taurus). [Krona](https://github.com/marbl/Krona/wiki) is then used to visualise the taxonomy results as pie charts. Users can search for their host taxonomy ID on the [NCBI taxonomy browser](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi) -- please note that since the centrifuge database is not updated regularly, certain taxa listed on NCBI will not have a match in centrifuge and will thus produce an error.    
 
 ### 6. Flye assembly and polishing
 
@@ -45,7 +45,7 @@ An example of adaptive sampling file is provided [here]()
 
 **c) Samplesheet file (csv)**
 
-Prepare a samplesheet containing one line for each sample with the following information: the sampleID (sample_id), the path to the corresponding basecalled read file (fastq) and the path to the corresponding adaptive sampling report (csv).     
+Prepare a samplesheet containing one line for each sample with the following information: the sampleID (sample_id), the path to the corresponding basecalled read file (fastq) and the path to the corresponding adaptive sampling report (csv). File paths are given in relation to the workflow base directory, they are not absolute paths.        
 ```
 sample_id,fastq,csv
 cowmilk2,fastq/Milk_samples_MET/2023_05_22_MET_cowmilk2_guppy6.3.8_sup.fastq.gz,fastq/Milk_samples_MET/adaptive_sampling_FAV67209_fa368ac1_d487a5df.csv
@@ -55,13 +55,13 @@ cowmilk30,fastq/Milk_samples_MET/2023_05_22_MET_cowmilk30_guppy6.3.8_sup.fastq.g
 
 **d) Reference genome sequence file (fasta)**
 
-For instance for the human genome, the file can be downloaded from: https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz.
+For instance for the human genome, the file can be downloaded from: https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/analysis_set/chm13v2.0.fa.gz. The file can be provided as a gzip.   
 
 **e) Nextflow configuration file (nextflow.config)**
 
-When a Nexflow pipeline script is launched, Nextflow looks for a file named **nextflow.config** in the current directory. The configuration file defines default parameters values for the pipeline and cluster settings such as the executor (e.g. "slurm", "local") and queues to be used (https://www.nextflow.io/docs/latest/config.html). 
+When a Nexflow pipeline script is launched, Nextflow looks for a file named **nextflow.config** in the current directory. The configuration file defines default parameters values for the pipeline and cluster settings such as the executor (e.g. "slurm", "local") and queues to be used (https://www.nextflow.io/docs/latest/config.html).  
 
-The pipeline uses separated Singularity containers for all processes. Nextflow will automatically pull the singularity images required to run the pipeline and cache those images in the singularity directory in the pipeline work directory by default or in the singularity.cacheDir specified in the nextflow.config file ([see documentation](https://www.nextflow.io/docs/latest/singularity.html)). 
+The pipeline uses separated Singularity containers for all processes. Nextflow will automatically pull the singularity images required to run the pipeline and cache those images in the singularity directory in the pipeline work directory by default or in the singularity.cacheDir specified in the nextflow.config file ([see documentation](https://www.nextflow.io/docs/latest/singularity.html)). Ensure that you have sufficient space in your assigned singularity directory as images can be large.   
 
 An example configuration file can be found [here](https://github.com/vmurigneu/DIS/blob/main/nextflow.config). 
 
