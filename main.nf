@@ -61,7 +61,11 @@ def helpMessage() {
 		--racon_threads 			Number of threads for Racon (default=4)
 		--medaka_threads 			Number of threads for Medaka (default=4)
 		--medaka_model				Medaka model (default=r1041_e82_400bps_sup_g615)
-	
+
+	Virus and Plasmid classification:
+		--skip_download_genomad_db		Skip the genomad database download if it is already present locally (default=false)
+		--skip_genomad				Skip genomad classification (default=false)
+
     """.stripIndent()
 }
 
@@ -495,9 +499,63 @@ process whokaryote {
 	"""
 }
 
+process download_genomad_db {
+    cpus 1
+    label "high_memory"
+    publishDir "$params.outdir/genomad_database",  mode: 'copy'
+    input:
+        val(db)
+    output:
+        path("genomad_db/*"),  emit: genomad_db
+    when:
+    !params.skip_download_genomad_db | !params.skip_assembly
+    script:
+    """
+    echo ${db}
+    wget ${db}
+    tar -xvf genomad_db_v1.5.tar.gz
+    """
+}
+
+process genomad {
+    cpus 1
+    tag "${sample}"
+    label "high_memory"
+    //publishDir "$params.outdir/$sample/8_genomad",  mode: 'copy', pattern: "*.tsv", saveAs: { filename -> "${sample}_$filename" }
+    publishDir "$params.outdir/$sample/8_genomad",  mode: 'copy', saveAs: { filename -> "${sample}_$filename" }
+    input:
+        tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly), path(genomad_db)
+    output:
+    path("*_aggregated_classification/*_aggregated_classification.tsv")    , emit: aggregated_classification
+    path("*_annotate/*_taxonomy.tsv")                                      , emit: taxonomy
+    path("*_find_proviruses/*_provirus.tsv")                               , emit: provirus
+    path("*_score_calibration/*_compositions.tsv")                         , emit: compositions                
+    path("*_score_calibration/*_calibrated_aggregated_classification.tsv") , emit: calibrated_classification   
+    path("*_summary/*_plasmid.fna")                                        , emit: plasmid_fasta
+    path("*_summary/*_plasmid_genes.tsv")                                  , emit: plasmid_genes
+    path("*_summary/*_plasmid_proteins.faa")                               , emit: plasmid_proteins
+    path("*_summary/*_plasmid_summary.tsv")                                , emit: plasmid_summary
+    path("*_summary/*_virus.fna")                                          , emit: virus_fasta
+    path("*_summary/*_virus_genes.tsv")                                    , emit: virus_genes
+    path("*_summary/*_virus_proteins.faa")                                 , emit: virus_proteins
+    path("*_summary/*_virus_summary.tsv")                                  , emit: virus_summary
+    //path "versions.yml"                                                                     , emit: versions
+    when:
+    !params.skip_genomad | !params.skip_assembly
+    script:
+    """
+    genomad end-to-end --cleanup --splits 4 ${adaptive_assembly} \$PWD ${genomad_db}
+    genomad end-to-end --cleanup --splits 4 ${non_adaptive_assembly} \$PWD ${genomad_db}
+    """
+}
+
+
+
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
 	ch_centrifuge_db.view()
+	ch_genomad_db=Channel.value( "${params.genomad_db}" )
+    	ch_genomad_db.view()
 	Channel.fromPath( "${params.samplesheet}", checkIfExists:true )
 	.splitCsv(header:true, sep:',')
 	.map { row -> tuple(row.sample_id, file(row.fastq, checkIfExists: true), file(row.csv, checkIfExists: true)) }
@@ -534,20 +592,45 @@ workflow {
 				racon(flye.out.bacterial_assembly_fasta)
 				medaka(racon.out.polished_racon)
 				whokaryote(medaka.out.polished_medaka)
-			} else if (params.skip_polishing) {
-				whokaryote(flye.out.bacterial_assembly_fasta)
-			}
-		}
-    	}  else if (params.skip_centrifuge) { 
-		if (!params.skip_assembly) {
-			flye(minimap.out.bacterial_fastq)
-			if (!params.skip_polishing) {
-				racon(flye.out.bacterial_assembly_fasta)
-				medaka(racon.out.polished_racon)
-				whokaryote(medaka.out.polished_medaka)
-			} else if (params.skip_polishing) {
-				whokaryote(flye.out.bacterial_assembly_fasta)
-			}
-		}
-	}
+                if (!params.skip_download_genomad_db) {
+                    download_genomad_db(ch_genomad_db)
+                    genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
+                } else if (params.skip_download_genomad_db) {
+                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
+                    genomad(medaka.out.polished_medaka.combine(ch_genomad_db))
+}
+            } else if (params.skip_polishing) {
+                whokaryote(flye.out.bacterial_assembly_fasta)
+                if (!params.skip_download_genomad_db) {
+                    download_genomad_db(ch_genomad_db)
+                    genomad(flye.out.bacterial_assembly_fasta.combine(download_genomad_db.out.genomad_db))
+               } else if (params.skip_download_genomad_db) {
+                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
+                    genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+            }
+        }
+        }  else if (params.skip_centrifuge) {
+        if (!params.skip_assembly) {
+            flye(minimap.out.bacterial_fastq)
+            if (!params.skip_polishing) {
+                racon(flye.out.bacterial_assembly_fasta)
+                medaka(racon.out.polished_racon)
+                whokaryote(medaka.out.polished_medaka)
+                if (!params.skip_download_genomad_db) {
+                    download_genomad_db(ch_genomad_db)
+                    genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
+               } else if (params.skip_download_genomad_db) {
+                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect() }
+                    genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
+            } else if (params.skip_polishing) {
+                whokaryote(flye.out.bacterial_assembly_fasta)
+                if (!params.skip_download_genomad_db) {
+                    download_genomad_db(ch_genomad_db)
+                    genomad(flye.out.bacterial_assembly_fasta.combine(download_genomad_db.out.genomad_db))
+               } else if (params.skip_download_genomad_db) {
+                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
+		genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+            }
+        }
+    }
 }
