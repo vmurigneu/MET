@@ -62,9 +62,22 @@ def helpMessage() {
 		--medaka_threads 			Number of threads for Medaka (default=4)
 		--medaka_model				Medaka model (default=r1041_e82_400bps_sup_g615)
 
+	Eukaryote and prokaryote classification:
+		--skip_whokaryote			Skip whokaryote classification (default=false)
+		--whokaryote_threads		Number of threads for Whokaryote (default=8)
+
 	Virus and Plasmid classification:
 		--skip_download_genomad_db		Skip the genomad database download if it is already present locally (default=false)
 		--skip_genomad				Skip genomad classification (default=false)
+
+	Aviary Recover MAGs:
+		--skip_aviary				Skip aviary recover (default=false)
+		--aviary_threads			Number of threads for Aviary (default=8)
+		--pplacer_threads			Number of threads for Aviary (default=8)
+		--max_memory_aviary			Maximum memory for Aviary (default=500)
+		--checkm_db					Path to the CheckM2 database
+		--gtdb_path					Path to the GTDB database
+		--eggnog_db					Path to the eggnog-mapper database
 
     """.stripIndent()
 }
@@ -549,7 +562,64 @@ process genomad {
     """
 }
 
-
+process aviary_recover {
+	cpus "${params.aviary_threads}"
+	tag "${sample}"
+	label "high_memory" 
+	//publishDir "$params.outdir/$sample/9_aviary",  mode: 'copy', pattern: "{*sv}", saveAs: { filename -> "${sample}_$filename" }
+	publishDir "$params.outdir/$sample/9_aviary",  mode: 'copy'
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly)
+	output:
+		path("${sample}_adaptive/bins/*"), emit: bins
+		path("${sample}_adaptive/data/*"), emit: data
+		path("${sample}_adaptive/diversity/*"), emit: diversity
+		path("${sample}_adaptive/benchmarks/*"), emit: benchmarks
+		path("${sample}_non_adaptive/bins/*"), emit: non_adaptive_bins
+		path("${sample}_non_adaptive/data/*"), emit: non_adaptive_data
+		path("${sample}_non_adaptive/diversity/*"), emit: non_adaptive_diversity
+		path("${sample}_non_adaptive/benchmarks/*"), emit: non_adaptive_benchmarks
+		path("aviary.log")
+	when:
+	!params.skip_aviary | !params.skip_assembly
+	script:
+	"""
+	set +eu
+	aviary recover \
+	--assembly ${adaptive_assembly} \
+	--longreads ${fastq_adaptive_bac} \
+	--longread-type ont_hq \
+	--n-cores ${params.aviary_threads} \
+	--skip-binners semibin \
+	--max_threads ${params.aviary_threads} \
+	--pplacer_threads ${params.pplacer_threads} \
+	--max_memory ${params.max_memory_aviary} \
+	--checkm2-db-path ${params.checkm_db} \
+	--gtdb-path ${params.gtdb_path} \
+	--eggnog-db-path ${params.eggnog_db} \
+	--workflow recover_mags \
+	--output \$PWD
+	mkdir ${sample}_adaptive
+	mv data/ bins/ benchmarks/ diversity/ config.yaml ${sample}_adaptive/
+	aviary recover \
+	--assembly ${non_adaptive_assembly} \
+	--longreads ${fastq_non_adaptive_bac} \
+	--longread-type ont_hq \
+	--n-cores ${params.aviary_threads} \
+	--skip-binners semibin \
+	--max_threads ${params.aviary_threads} \
+	--pplacer_threads ${params.pplacer_threads} \
+	--max_memory ${params.max_memory_aviary} \
+	--checkm2-db-path ${params.checkm_db} \
+	--gtdb-path ${params.gtdb_path} \
+	--eggnog-db-path ${params.eggnog_db} \
+	--workflow recover_mags \
+	--output \$PWD
+	mkdir ${sample}_non_adaptive
+	mv data/ bins/ benchmarks/ diversity/ config.yaml ${sample}_non_adaptive/
+ 	cp .command.log aviary.log
+	"""
+}
 
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
@@ -591,22 +661,36 @@ workflow {
 			if (!params.skip_polishing) {
 				racon(flye.out.bacterial_assembly_fasta)
 				medaka(racon.out.polished_racon)
-				whokaryote(medaka.out.polished_medaka)
-                if (!params.skip_download_genomad_db) {
-                    download_genomad_db(ch_genomad_db)
-                    genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
-                } else if (params.skip_download_genomad_db) {
-                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
-                    genomad(medaka.out.polished_medaka.combine(ch_genomad_db))
-}
+				if (!params.skip_whokaryote) {
+					whokaryote(medaka.out.polished_medaka)
+				}
+                if (!params.skip_genomad) {
+					if (!params.skip_download_genomad_db) {
+                    	download_genomad_db(ch_genomad_db)
+                    	genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
+                	} else if (params.skip_download_genomad_db) {
+                    	ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
+                    	genomad(medaka.out.polished_medaka.combine(ch_genomad_db))
+					}
+				}
+				if (!params.skip_aviary) {
+					aviary_recover(medaka.out.polished_medaka)
+				}
             } else if (params.skip_polishing) {
-                whokaryote(flye.out.bacterial_assembly_fasta)
-                if (!params.skip_download_genomad_db) {
-                    download_genomad_db(ch_genomad_db)
-                    genomad(flye.out.bacterial_assembly_fasta.combine(download_genomad_db.out.genomad_db))
-               } else if (params.skip_download_genomad_db) {
-                    ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
-                    genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+				if (!params.skip_whokaryote) {
+                	whokaryote(flye.out.bacterial_assembly_fasta)
+				}
+				if (!params.skip_genomad) {
+                	if (!params.skip_download_genomad_db) {
+                    	download_genomad_db(ch_genomad_db)
+                    	genomad(flye.out.bacterial_assembly_fasta.combine(download_genomad_db.out.genomad_db))
+               		} else if (params.skip_download_genomad_db) {
+                    	ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
+                    	genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+				}
+				if (!params.skip_aviary) {
+					aviary_recover(flye.out.bacterial_assembly_fasta)
+				}
             }
         }
         }  else if (params.skip_centrifuge) {
@@ -615,21 +699,31 @@ workflow {
             if (!params.skip_polishing) {
                 racon(flye.out.bacterial_assembly_fasta)
                 medaka(racon.out.polished_racon)
-                whokaryote(medaka.out.polished_medaka)
+                if (!params.skip_whokaryote) {
+					whokaryote(medaka.out.polished_medaka)
+				}
                 if (!params.skip_download_genomad_db) {
                     download_genomad_db(ch_genomad_db)
                     genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
                } else if (params.skip_download_genomad_db) {
                     ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect() }
                     genomad(medaka.out.polished_medaka.combine(download_genomad_db.out.genomad_db))
+				if (!params.skip_aviary) {
+					aviary_recover(medaka.out.polished_medaka)
+				}
             } else if (params.skip_polishing) {
-                whokaryote(flye.out.bacterial_assembly_fasta)
+				if (!params.skip_whokaryote) {
+                	whokaryote(flye.out.bacterial_assembly_fasta)
+				}
                 if (!params.skip_download_genomad_db) {
                     download_genomad_db(ch_genomad_db)
                     genomad(flye.out.bacterial_assembly_fasta.combine(download_genomad_db.out.genomad_db))
                } else if (params.skip_download_genomad_db) {
                     ch_genomad_db=Channel.fromPath( "${params.outdir}/genomad_database/genomad_db/" ).collect()
-		genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+					genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
+				if (!params.skip_aviary) {
+					aviary_recover(flye.out.bacterial_assembly_fasta)
+				}
             }
         }
     }
