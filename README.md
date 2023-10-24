@@ -31,6 +31,18 @@ Host removed reads from the previous step are used as input to the classifier [C
 
 The host removed reads (adaptive and non-adaptive) are assembled using the software [Flye](https://github.com/fenderglass/Flye) (metagenome mode). The draft assemblies are subsequently polished using [Racon](https://github.com/isovic/racon) and [Medaka](https://github.com/nanoporetech/medaka). The model parameter selected to run Medaka (e.g. r1041_e82_400bps_sup_g615) should correspond to the model used for the basecalling (e.g. dna_r10.4.1_e8.2_400bps_sup.cfg).  
 
+### 7. Eukaryote and prokaryote classification
+
+The assembly contigs (adaptive and non-adaptive) are classified into prokaryote or eukaryote contigs using the software [whokaryote](https://github.com/LottePronk/whokaryote). 
+
+### 8. 	Virus and Plasmid classification
+
+using the software [genomad](https://github.com/apcamargo/genomad)
+
+### 9. 	Aviary Recover MAGs
+
+This step will recover MAGs from provided assembly using a variety of binning algorithms, as implemented in the module recover from the software [aviary](https://github.com/rhysnewell/aviary/).
+
 ## Usage
 
 ### 0. Required input files
