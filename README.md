@@ -33,7 +33,7 @@ The host removed reads (adaptive and non-adaptive) are assembled using the softw
 
 ### 7. Eukaryote and prokaryote classification
 
-The assembly contigs (adaptive and non-adaptive) are classified into prokaryote or eukaryote contigs using the software [whokaryote](https://github.com/LottePronk/whokaryote). 
+The assembly contigs (adaptive and non-adaptive) are classified into prokaryote or eukaryote contigs using the software [whokaryote](https://github.com/LottePronk/whokaryote). Note that contigs with less than 2 genes or shorter than the minimum size are not classified and do not appear in the output.
 
 ### 8. 	Virus and plasmid classification
 
