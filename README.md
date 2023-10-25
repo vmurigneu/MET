@@ -37,9 +37,12 @@ The assembly contigs (adaptive and non-adaptive) are classified into prokaryote 
 
 ### 8. 	Virus and Plasmid classification
 
-using the software [genomad](https://github.com/apcamargo/genomad)
+Viruses and plasmids are predicted using the software [genomad](https://github.com/apcamargo/genomad). If either of the assemblies are empty, genomad will be skipped on the respective assembly. If both adaptive and non-adaptive assemblies are empty, than genomad will error out and the pipeline should be rerun with --skip_genomad and -resume options. 
 
 ### 9. 	Aviary Recover MAGs
+
+### Additional Notes on databases 
+As the size of the centrifuge and genomad databases is large and the donwload takes up considerable time, if repeated runs of the pipeline are required, it is recommended that users move the databases from the results folder of one analysis into the results folder of the second analysis, providing the options to skip the download of the databases on the subsequent run. Please be aware that this will only work if the different analyses are not run simultaneously, in which case a database for each analysis is required to be downloaded.   
 
 This step will recover MAGs from provided assembly (adaptive and non-adaptive) using a variety of binning algorithms, as implemented in the module recover from the software [aviary](https://github.com/rhysnewell/aviary/).
 
