@@ -561,8 +561,16 @@ process genomad {
     !params.skip_genomad | !params.skip_assembly
     script:
     """
-    genomad end-to-end --cleanup --splits 4 ${adaptive_assembly} \$PWD ${genomad_db}
-    genomad end-to-end --cleanup --splits 4 ${non_adaptive_assembly} \$PWD ${genomad_db}
+    if [ -s ${adaptive_assembly} ] &&  [ -s ${non_adaptive_assembly} ] ; then
+        genomad end-to-end --cleanup --splits 4 ${adaptive_assembly} \$PWD ${genomad_db}
+        genomad end-to-end --cleanup --splits 4 ${non_adaptive_assembly} \$PWD ${genomad_db}
+    elif [ -s ${adaptive_assembly} ] ; then
+        genomad end-to-end --cleanup --splits 4 ${adaptive_assembly} \$PWD ${genomad_db}
+    elif [ -s ${non_adaptive_assembly} ] ; then
+        genomad end-to-end --cleanup --splits 4 ${non_adaptive_assembly} \$PWD ${genomad_db}
+    else
+        echo "both non_adaptive and adaptive assembly files are empty, so genomad was not run"
+    fi
     """
 }
 

@@ -31,6 +31,21 @@ Host removed reads from the previous step are used as input to the classifier [C
 
 The host removed reads (adaptive and non-adaptive) are assembled using the software [Flye](https://github.com/fenderglass/Flye) (metagenome mode). The draft assemblies are subsequently polished using [Racon](https://github.com/isovic/racon) and [Medaka](https://github.com/nanoporetech/medaka). The model parameter selected to run Medaka (e.g. r1041_e82_400bps_sup_g615) should correspond to the model used for the basecalling (e.g. dna_r10.4.1_e8.2_400bps_sup.cfg).  
 
+### 7. Eukaryote and prokaryote classification
+
+The assembly contigs (adaptive and non-adaptive) are classified into prokaryote or eukaryote contigs using the software [whokaryote](https://github.com/LottePronk/whokaryote). Note that contigs with less than 2 genes or shorter than the minimum size are not classified and do not appear in the output.
+
+### 8. 	Virus and plasmid classification
+
+Viruses and plasmids are predicted using the software [genomad](https://github.com/apcamargo/genomad). If either of the assemblies are empty, genomad will be skipped on the respective assembly. If both adaptive and non-adaptive assemblies are empty, than genomad will error out and the pipeline should be rerun with --skip_genomad and -resume options. 
+
+### 9. 	Aviary Recover MAGs
+   
+This step will recover MAGs from provided assembly (adaptive and non-adaptive) using a variety of binning algorithms, as implemented in the module recover from the software [aviary](https://github.com/rhysnewell/aviary/).
+
+### Additional notes on donwloading databases 
+As the size of the centrifuge and genomad databases is large and the download takes up considerable time, if repeated runs of the pipeline are required, it is recommended that users move the databases from the results folder of one analysis into the results folder of the subsequent analysis, providing the options to skip the download of the databases on the subsequent run. Please be aware that this will only work if the different analyses are not run simultaneously, in which case a database for each analysis is required to be downloaded.
+
 ## Usage
 
 ### 0. Required input files
@@ -107,6 +122,23 @@ Polishing:
 * `--medaka_threads`: number of threads for Medaka (default=8)
 * `--medaka_model`: name of the Medaka model (default=r1041_e82_400bps_sup_g615, see [details](https://github.com/nanoporetech/medaka#models)
 
+Eukaryote and prokaryote classification:
+* `--skip_whokaryote`:	Skip whokaryote classification (default=false)
+* `--whokaryote_threads`:	Number of threads for Whokaryote (default=8)
+
+Virus and Plasmid classification:
+* `--skip_download_genomad_db`:	Skip the genomad database download if it is already present locally (default=false)
+* `--skip_genomad`:	Skip genomad classification (default=false)
+
+Aviary Recover MAGs:
+* `--skip_aviary`: Skip aviary recover (default=false)
+* `--aviary_threads`: Number of threads for Aviary (default=8)
+* `--pplacer_threads`: Number of threads for Aviary (default=8)
+* `--max_memory_aviary`:	Maximum memory for Aviary (default=500)
+* `--checkm_db`:	Path to the CheckM2 database
+* `--gtdb_path`:	Path to the GTDB database
+* `--eggnog_db`:	Path to the eggnog-mapper database
+
 ## Structure of the output folders
 
 The pipeline will create several folders corresponding to the different steps of the pipeline. 
@@ -124,4 +156,6 @@ Each sample folder will contain the following folders:
   * List of host removed read identifiers (sample_id_adaptive_centrifuge_bac_readID.lst and sample_id_non_adaptive_centrifuge_bac_readID.lst)
   * Krona pie chart HTML report for the host removed reads (after both Minimap2 and Centrifuge steps)  
 * **6_assembly:** Flye assembly output files (.fasta, .gfa, .gv, .info.txt), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md#-flye-output). The final polished asssembly fasta files are sample_id_adaptive_flye_polished.fasta and sample_id_non_adaptive_flye_polished.fasta.  
-
+* **7_whokaryote:** Whokaryote output files (.csv, .txt, .tsv, .fasta, .gff, .faa), see [details](https://github.com/LottePronk/whokaryote) for adaptive and non-adaptive assemblies.
+* **8_genomad:** Genomad output files (), see [details]()
+* **9_aviary:** Aviary recover output files contained in the folders benchmarks/, bins/, data/, diversity/, taxonomy/ for adaptive and non-adaptive bins. 
