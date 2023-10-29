@@ -79,6 +79,10 @@ def helpMessage() {
 		--gtdb_path					Path to the GTDB database
 		--eggnog_db					Path to the eggnog-mapper database
 
+	Assembly quality assessment with QUAST:
+		--skip_quast				Skip QUAST step (default=false)
+		--quast_threads				Number of threads for QUAST (default=2)
+
     """.stripIndent()
 }
 
@@ -621,6 +625,25 @@ process aviary_recover {
 	"""
 }
 
+process quast {
+	cpus "${params.quast_threads}"
+	tag "${sample}"
+	publishDir "$params.outdir/$sample/10_quast",  mode: 'copy'
+	//publishDir "$params.outdir/$sample/10_quast",  mode: 'copy', pattern: "{*sv}", saveAs: { filename -> "${sample}_$filename" }
+	input:
+		tuple val(sample), path(fastq_adaptive_bac), path(adaptive_assembly), path(fastq_non_adaptive_bac), path(non_adaptive_assembly)
+	output:
+		path("${sample}/*"), emit: quast_results
+		path("quast.log")
+	when:
+	!params.skip_quast | !params.skip_assembly
+	script:
+	"""
+	metaquast.py -l ${sample}_AS,${sample}_NAS ${adaptive_assembly} ${non_adaptive_assembly} --max-ref-number 0 --threads ${params.quast_threads} -o \$PWD/${sample}
+	cp .command.log quast.log
+	"""
+}
+
 workflow {
 	ch_centrifuge_db=Channel.value( "${params.centrifuge_db}")
 	ch_centrifuge_db.view()
@@ -676,6 +699,9 @@ workflow {
 				if (!params.skip_aviary) {
 					aviary_recover(medaka.out.polished_medaka)
 				}
+				if (!params.skip_quast) {
+					quast(medaka.out.polished_medaka)
+				}
             } else if (params.skip_polishing) {
 				if (!params.skip_whokaryote) {
                 	whokaryote(flye.out.bacterial_assembly_fasta)
@@ -690,6 +716,9 @@ workflow {
 				}
 				if (!params.skip_aviary) {
 					aviary_recover(flye.out.bacterial_assembly_fasta)
+				}
+				if (!params.skip_quast) {
+					quast(flye.out.bacterial_assembly_fasta)
 				}
             }
         }
@@ -711,6 +740,9 @@ workflow {
 				if (!params.skip_aviary) {
 					aviary_recover(medaka.out.polished_medaka)
 				}
+				if (!params.skip_quast) {
+					quast(medaka.out.polished_medaka)
+				}
             } else if (params.skip_polishing) {
 				if (!params.skip_whokaryote) {
                 	whokaryote(flye.out.bacterial_assembly_fasta)
@@ -723,6 +755,9 @@ workflow {
 					genomad(flye.out.bacterial_assembly_fasta.combine(ch_genomad_db)) }
 				if (!params.skip_aviary) {
 					aviary_recover(flye.out.bacterial_assembly_fasta)
+				}
+				if (!params.skip_quast) {
+					quast(flye.out.bacterial_assembly_fasta)
 				}
             }
         }
