@@ -43,6 +43,10 @@ Viruses and plasmids are predicted using the software [genomad](https://github.c
    
 This step will recover MAGs from provided assembly (adaptive and non-adaptive) using a variety of binning algorithms, as implemented in the module recover from the software [aviary](https://github.com/rhysnewell/aviary/).
 
+### 10. 	Assembly quality assessment with metaQUAST
+
+The software [metaQUAST](https://quast.sourceforge.net/metaquast.html) is used to compute metagenome assembly metrics on the polished assemblies (adaptive and non-adaptive).  
+
 ### Additional notes on donwloading databases 
 As the size of the centrifuge and genomad databases is large and the download takes up considerable time, if repeated runs of the pipeline are required, it is recommended that users move the databases from the results folder of one analysis into the results folder of the subsequent analysis, providing the options to skip the download of the databases on the subsequent run. Please be aware that this will only work if the different analyses are not run simultaneously, in which case a database for each analysis is required to be downloaded.
 
@@ -139,6 +143,10 @@ Aviary Recover MAGs:
 * `--gtdb_path`:	Path to the GTDB database
 * `--eggnog_db`:	Path to the eggnog-mapper database
 
+Assembly quality assessment with QUAST:
+* `--skip_quast`:	Skip the quast step (default=false)
+* `--quast_threads`:	Number of threads for QUAST (default=2)
+
 ## Structure of the output folders
 
 The pipeline will create several folders corresponding to the different steps of the pipeline. 
@@ -158,4 +166,5 @@ Each sample folder will contain the following folders:
 * **6_assembly:** Flye assembly output files (.fasta, .gfa, .gv, .info.txt), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md#-flye-output). The final polished asssembly fasta files are sample_id_adaptive_flye_polished.fasta and sample_id_non_adaptive_flye_polished.fasta.  
 * **7_whokaryote:** Whokaryote output files (.csv, .txt, .tsv, .fasta, .gff, .faa), see [details](https://github.com/LottePronk/whokaryote) for adaptive and non-adaptive assemblies.
 * **8_genomad:** Genomad output files (), see [details]()
-* **9_aviary:** Aviary recover output files contained in the folders benchmarks/, bins/, data/, diversity/, taxonomy/ for adaptive and non-adaptive bins. 
+* **9_aviary:** Aviary recover output files contained in the folders benchmarks/, bins/, data/, diversity/, taxonomy/ for adaptive and non-adaptive bins.
+* **10_quast:** QUAST output files contained in the files report{.txt,.csv,.html,.pdf), icarus.html and folders basic_stats/ and icarus_viewers/.  
