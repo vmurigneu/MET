@@ -546,8 +546,8 @@ process genomad {
     path("*_aggregated_classification/*_aggregated_classification.tsv")    , emit: aggregated_classification
     path("*_annotate/*_taxonomy.tsv")                                      , emit: taxonomy
     path("*_find_proviruses/*_provirus.tsv")                               , emit: provirus
-    path("*_score_calibration/*_compositions.tsv")                         , emit: compositions                
-    path("*_score_calibration/*_calibrated_aggregated_classification.tsv") , emit: calibrated_classification   
+    //path("*_score_calibration/*_compositions.tsv")                         , emit: compositions                
+    //path("*_score_calibration/*_calibrated_aggregated_classification.tsv") , emit: calibrated_classification   
     path("*_summary/*_plasmid.fna")                                        , emit: plasmid_fasta
     path("*_summary/*_plasmid_genes.tsv")                                  , emit: plasmid_genes
     path("*_summary/*_plasmid_proteins.faa")                               , emit: plasmid_proteins
