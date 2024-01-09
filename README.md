@@ -47,7 +47,7 @@ This step will recover MAGs from provided assembly (adaptive and non-adaptive) u
 
 The software [metaQUAST](https://quast.sourceforge.net/metaquast.html) is used to compute metagenome assembly metrics on the polished assemblies (adaptive and non-adaptive).  
 
-### Additional notes on donwloading databases 
+### Additional notes on downloading databases 
 As the size of the centrifuge and genomad databases is large and the download takes up considerable time, if repeated runs of the pipeline are required, it is recommended that users move the databases from the results folder of one analysis into the results folder of the subsequent analysis, providing the options to skip the download of the databases on the subsequent run. Please be aware that this will only work if the different analyses are not run simultaneously, in which case a database for each analysis is required to be downloaded.
 
 ## Usage
