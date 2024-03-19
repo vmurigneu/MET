@@ -17,7 +17,7 @@ The trimmed reads are splitted into two fastq files: the adaptive reads (Adaptiv
 
 ### 3. Adaptive sampling metrics 
 
-[Nanocomp](https://github.com/wdecoster/nanocomp) is used to compute metrics (Median Read Length, Read N50, Median Read Quality) for the different categories of adaptive sampling reads: stop_receiving, unblock and no_decision. 
+[Nanocomp](https://github.com/wdecoster/nanocomp) is used to compute metrics (Median Read Length, Read N50, Median Read Quality) for the different categories of adaptive sampling reads: stop_receiving, unblock and no_decision. Those metrics are computed on the raw reads included in the fastq files.  
 
 ### 4. Minimap2 mapping
 
@@ -165,6 +165,6 @@ Each sample folder will contain the following folders:
   * Krona pie chart HTML report for the host removed reads (after both Minimap2 and Centrifuge steps)  
 * **6_assembly:** Flye assembly output files (.fasta, .gfa, .gv, .info.txt), see [details](https://github.com/fenderglass/Flye/blob/flye/docs/USAGE.md#-flye-output). The final polished asssembly fasta files are sample_id_adaptive_flye_polished.fasta and sample_id_non_adaptive_flye_polished.fasta.  
 * **7_whokaryote:** Whokaryote output files (.csv, .txt, .tsv, .fasta, .gff, .faa), see [details](https://github.com/LottePronk/whokaryote) for adaptive and non-adaptive assemblies.
-* **8_genomad:** Genomad output files (), see [details]()
+* **8_genomad:** Genomad output files (.fna, .faa, .tsv, .log), see [details](https://github.com/apcamargo/genomad?tab=readme-ov-file#understanding-the-outputs)
 * **9_aviary:** Aviary recover output files contained in the folders benchmarks/, bins/, data/, diversity/, taxonomy/ for adaptive and non-adaptive bins.
 * **10_quast:** QUAST output files contained in the files report{.txt,.csv,.html,.pdf), icarus.html and folders basic_stats/ and icarus_viewers/.  
